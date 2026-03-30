@@ -1,582 +1,499 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <title>Live Route Tracker (Offline Ready)</title>
-
-    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Fira+Sans:wght@400;600;700&display=swap"
+        rel="stylesheet">
 
     <style>
-        #map {
-            height: 500px;
-            width: 100%;
-            margin: 20px 0;
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+        /* ═══════════════════════════════════════════════════════
+       GHOST TRACKER — iOS-Precision Dark UI
+       Fonts: DM Mono (data) + Outfit (body)
+    ═══════════════════════════════════════════════════════ */
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;900&display=swap');
+
+        :root {
+            /* ── Core Palette ── */
+            --blue: #0A84FF;
+            --blue-mid: #0066CC;
+            --blue-glow: rgba(10, 132, 255, 0.45);
+            --blue-dim: rgba(10, 132, 255, 0.12);
+            --green: #30D158;
+            --green-glow: rgba(48, 209, 88, 0.5);
+            --red: #FF453A;
+            --amber: #FFD60A;
+
+            /* ── Surfaces ── */
+            --bg: #000000;
+            --surface-1: rgba(18, 18, 20, 0.92);
+            --surface-2: rgba(28, 28, 32, 0.85);
+            --surface-3: rgba(38, 38, 44, 0.80);
+            --surface-hover: rgba(50, 50, 60, 0.90);
+
+            /* ── Borders ── */
+            --border-dim: rgba(255, 255, 255, 0.07);
+            --border-mid: rgba(255, 255, 255, 0.13);
+            --border-lit: rgba(255, 255, 255, 0.22);
+
+            /* ── Text ── */
+            --txt-1: #ffffff;
+            --txt-2: rgba(255, 255, 255, 0.60);
+            --txt-3: rgba(255, 255, 255, 0.35);
+
+            /* ── Shape ── */
+            --r-sm: 12px;
+            --r-md: 18px;
+            --r-lg: 24px;
+            --r-xl: 32px;
+
+            /* ── Motion ── */
+            --spring: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            --fluid: cubic-bezier(0.16, 1, 0.3, 1);
+            --snap: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+            /* ── Typography ── */
+            --font-data: 'DM Mono', monospace;
+            --font-body: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+
+            /* ── Shadows ── */
+            --shadow-card:
+                0 2px 1px rgba(255, 255, 255, 0.04) inset,
+                0 20px 60px rgba(0, 0, 0, 0.6),
+                0 4px 16px rgba(0, 0, 0, 0.4);
+            --shadow-btn:
+                0 8px 32px rgba(10, 132, 255, 0.35),
+                0 2px 8px rgba(0, 0, 0, 0.4);
         }
 
-        body {
-            font-family: 'Inter', sans-serif;
+        /* ── Reset ── */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            background: #16161a;
-            color: #fffffe;
+            -webkit-tap-highlight-color: transparent;
         }
 
-        .content {
-            padding: 20px 28px;
+        /* ── Body ── */
+        body {
+            background: var(--bg);
+            color: var(--txt-1);
+            font-family: var(--font-body);
+            min-height: 100vh;
+            letter-spacing: -0.015em;
+            overflow-x: hidden;
+
+            background-image:
+                radial-gradient(ellipse 80% 50% at 20% -10%, rgba(10, 132, 255, 0.12) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 40% at 80% 110%, rgba(48, 209, 88, 0.07) 0%, transparent 55%),
+                radial-gradient(circle at 50% 50%, #0a0a0e 0%, #000 100%);
+            animation: meshDrift 18s ease-in-out infinite alternate;
         }
 
-        button {
-            margin: 5px;
-            padding: 10px 20px;
-            font-size: 16px;
-            font-family: 'Inter', sans-serif;
-            font-weight: 600;
-            color: #fff;
-            background: linear-gradient(135deg, #7f5af0, #2cb67d);
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.3s;
-            box-shadow: 0 2px 12px rgba(127, 90, 240, 0.25);
+        @keyframes meshDrift {
+            0% {
+                background-position: 0% 0%, 100% 100%, 50% 50%;
+            }
+
+            100% {
+                background-position: 10% 5%, 90% 95%, 50% 50%;
+            }
         }
 
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(127, 90, 240, 0.4);
-        }
-
-        button:active {
-            transform: scale(0.97);
-        }
-
-        button:disabled {
-            opacity: 0.45;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        /* -------- Nav Bar -------- */
+        /* NAVBAR */
         .navbar {
+            background: rgba(6, 6, 8, 0.75);
+            backdrop-filter: saturate(200%) blur(28px);
+            -webkit-backdrop-filter: saturate(200%) blur(28px);
+            border-bottom: 1px solid var(--border-dim);
+            padding: 14px 28px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 28px;
-            background: rgba(255, 255, 255, 0.04);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            transition:
+                background 0.4s var(--fluid),
+                border-color 0.4s var(--fluid);
         }
 
-        .navbar .brand {
+        .navbar::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 10%;
+            width: 80%;
+            height: 1px;
+            background: linear-gradient(90deg,
+                    transparent,
+                    rgba(10, 132, 255, 0.5) 40%,
+                    rgba(10, 132, 255, 0.5) 60%,
+                    transparent);
+            opacity: 0;
+            transition: opacity 0.6s var(--fluid);
+        }
+
+        body.tracking .navbar::after {
+            opacity: 1;
+        }
+
+        .navbar-brand {
+            font-family: var(--font-body);
+            font-weight: 700;
+            font-size: 18px;
+            letter-spacing: -0.04em;
+            color: var(--txt-1);
             display: flex;
             align-items: center;
             gap: 10px;
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: #fffffe;
         }
 
-        .navbar .brand .icon {
-            width: 36px;
-            height: 36px;
-            background: linear-gradient(135deg, #7f5af0, #2cb67d);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 18px;
+        .navbar-brand .brand-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--blue);
+            box-shadow: 0 0 10px var(--blue-glow);
+            animation: brandPulse 3s ease-in-out infinite;
         }
 
-        .navbar .user-area {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
+        @keyframes brandPulse {
 
-        .navbar .user-badge {
-            background: rgba(127, 90, 240, 0.15);
-            border: 1px solid rgba(127, 90, 240, 0.25);
-            padding: 6px 16px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: #c4b5fd;
-        }
-
-        .navbar .logout-btn {
-            padding: 8px 18px;
-            font-size: 0.82rem;
-            background: rgba(255, 73, 73, 0.12);
-            border: 1px solid rgba(255, 73, 73, 0.25);
-            color: #ff6b6b;
-            border-radius: 10px;
-            box-shadow: none;
-            transition: background 0.2s, transform 0.2s;
-            margin: 0;
-        }
-
-        .navbar .logout-btn:hover {
-            background: rgba(255, 73, 73, 0.25);
-            transform: translateY(-1px);
-            box-shadow: none;
-        }
-
-        h1,
-        h2 {
-            color: #fffffe;
-        }
-
-        h1 {
-            font-size: 1.4rem;
-            margin-bottom: 10px;
-        }
-
-        #offlineData {
-            background: rgba(255, 255, 255, 0.04);
-            padding: 12px;
-            border-radius: 12px;
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        #instructions {
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 12px;
-            color: rgba(255, 255, 255, 0.7);
-        }
-
-        /* -------- History Panel -------- */
-        .history-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            z-index: 9999;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(6px);
-            -webkit-backdrop-filter: blur(6px);
-            justify-content: center;
-            align-items: center;
-        }
-
-        .history-overlay.active {
-            display: flex;
-        }
-
-        .history-panel {
-            width: 90%;
-            max-width: 520px;
-            max-height: 80vh;
-            background: #1e1e24;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.5);
-            overflow: hidden;
-            animation: panelIn 0.35s ease;
-        }
-
-        @keyframes panelIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px) scale(0.97);
-            }
-
-            to {
+            0%,
+            100% {
                 opacity: 1;
-                transform: translateY(0) scale(1);
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(0.75);
             }
         }
 
-        .history-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 18px 24px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 28px 20px;
         }
 
-        .history-header h2 {
-            margin: 0;
-            font-size: 1.15rem;
-        }
-
-        .history-close {
-            background: rgba(255, 255, 255, 0.08);
-            border: none;
-            color: #fff;
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            font-size: 1.1rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
-            box-shadow: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .history-close:hover {
-            background: rgba(255, 73, 73, 0.25);
-            transform: none;
-            box-shadow: none;
-        }
-
-        .history-body {
-            padding: 16px 24px;
-            overflow-y: auto;
-            max-height: calc(80vh - 70px);
-        }
-
-        .history-date-group {
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
             margin-bottom: 20px;
         }
 
-        .history-date-label {
-            font-size: 0.78rem;
+        @media (max-width: 680px) {
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .stat-card {
+            background: var(--surface-1);
+            border: 1px solid var(--border-dim);
+            border-radius: var(--r-lg);
+            padding: 20px 18px;
+            position: relative;
+            overflow: hidden;
+            cursor: default;
+            transition:
+                transform 0.5s var(--spring),
+                border-color 0.4s var(--fluid),
+                background 0.4s var(--fluid),
+                box-shadow 0.4s var(--fluid);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg,
+                    rgba(255, 255, 255, 0.035) 0%,
+                    transparent 50%,
+                    rgba(255, 255, 255, 0.015) 100%);
+            pointer-events: none;
+        }
+
+        .stat-card::after {
+            content: '';
+            position: absolute;
+            top: -60%;
+            left: -20%;
+            width: 140%;
+            height: 140%;
+            background: radial-gradient(circle, rgba(10, 132, 255, 0.10) 0%, transparent 65%);
+            opacity: 0;
+            transition: opacity 0.6s var(--fluid);
+            pointer-events: none;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-6px) scale(1.02);
+            border-color: rgba(10, 132, 255, 0.35);
+            background: var(--surface-hover);
+            box-shadow:
+                0 0 0 1px rgba(10, 132, 255, 0.15),
+                0 20px 50px rgba(0, 0, 0, 0.55),
+                0 4px 12px rgba(10, 132, 255, 0.12);
+        }
+
+        .stat-card:hover::after {
+            opacity: 1;
+        }
+
+        .stat-label {
+            font-size: 10px;
             font-weight: 600;
-            color: #7f5af0;
+            letter-spacing: 0.12em;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            color: var(--txt-3);
             margin-bottom: 10px;
         }
 
-        .history-card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 14px;
-            padding: 14px 18px;
-            margin-bottom: 10px;
+        .stat-value {
+            font-family: var(--font-data);
+            font-size: 26px;
+            font-weight: 500;
+            color: var(--txt-1);
+            line-height: 1;
+            letter-spacing: -0.02em;
+            transition: color 0.3s, text-shadow 0.3s;
+        }
+
+        body.tracking .stat-card .stat-value {
+            color: #fff;
+            text-shadow: 0 0 20px rgba(10, 132, 255, 0.4);
+        }
+
+        #tracking-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            color: var(--txt-2);
+            background: var(--surface-2);
+            border: 1px solid var(--border-dim);
+            border-radius: 100px;
+            padding: 5px 12px;
+            transition: all 0.4s var(--fluid);
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--txt-3);
+            transition: all 0.4s var(--fluid);
+            flex-shrink: 0;
+        }
+
+        .status-dot.live {
+            background: var(--green);
+            box-shadow:
+                0 0 0 2px rgba(48, 209, 88, 0.25),
+                0 0 12px var(--green-glow);
+            animation: livePulse 1.8s ease-in-out infinite;
+        }
+
+        @keyframes livePulse {
+
+            0%,
+            100% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.45);
+            }
+        }
+
+        .button-row {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            transition: background 0.2s;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
         }
 
-        .history-card:hover {
-            background: rgba(255, 255, 255, 0.08);
-        }
-
-        .history-card .info {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .history-card .info .time {
-            font-size: 0.92rem;
+        .btn {
+            position: relative;
+            overflow: hidden;
+            padding: 13px 26px;
+            border-radius: var(--r-md);
+            font-family: var(--font-body);
+            font-size: 14px;
             font-weight: 600;
-            color: #fffffe;
+            letter-spacing: -0.01em;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 9px;
+            transition:
+                transform 0.3s var(--spring),
+                box-shadow 0.3s var(--fluid),
+                filter 0.3s var(--fluid),
+                background 0.3s var(--fluid);
+            -webkit-font-smoothing: antialiased;
+            user-select: none;
         }
 
-        .history-card .info .meta {
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.4);
+        .btn:active {
+            transform: scale(0.93) !important;
         }
 
-        .history-card .view-btn {
-            padding: 7px 14px;
-            font-size: 0.78rem;
-            background: linear-gradient(135deg, #f59e0b, #ef4444);
-            box-shadow: 0 2px 10px rgba(245, 158, 11, 0.25);
-            border-radius: 10px;
-            margin: 0;
+        .btn-start {
+            background: linear-gradient(160deg, #1a8eff 0%, var(--blue) 45%, var(--blue-mid) 100%);
+            color: #fff;
+            box-shadow: var(--shadow-btn);
         }
 
-        .history-card .view-btn:hover {
-            box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+        .btn-start:hover {
+            transform: translateY(-3px) scale(1.03);
+            box-shadow:
+                0 12px 40px rgba(10, 132, 255, 0.50),
+                0 4px 12px rgba(0, 0, 0, 0.4);
+            filter: brightness(1.08);
         }
 
-        .history-empty {
-            text-align: center;
-            color: rgba(255, 255, 255, 0.35);
-            padding: 40px 0;
-            font-size: 0.9rem;
+        .btn-stop {
+            background: rgba(255, 69, 58, 0.14);
+            color: var(--red);
+            border: 1px solid rgba(255, 69, 58, 0.30);
+        }
+
+        .btn-stop:hover {
+            transform: translateY(-3px) scale(1.03);
+            background: rgba(255, 69, 58, 0.22);
+            border-color: rgba(255, 69, 58, 0.55);
+            box-shadow: 0 8px 28px rgba(255, 69, 58, 0.22);
+        }
+
+        .btn-history {
+            background: var(--surface-2);
+            color: var(--txt-2);
+            border: 1px solid var(--border-mid);
+        }
+
+        .btn-history:hover {
+            transform: translateY(-3px) scale(1.03);
+            background: var(--surface-3);
+            border-color: var(--border-lit);
+            color: var(--txt-1);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        .water-drop {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.30);
+            transform: translate(-50%, -50%) scale(0);
+            pointer-events: none;
+            animation: waterDrop 0.75s var(--fluid) forwards;
+        }
+
+        @keyframes waterDrop {
+            0% {
+                width: 0px;
+                height: 0px;
+            }
+
+            100% {
+                width: 380px;
+                height: 380px;
+            }
+        }
+
+        .map-wrapper {
+            position: relative;
+            border-radius: var(--r-xl);
+            padding: 5px;
+            background: linear-gradient(145deg,
+                    rgba(255, 255, 255, 0.07) 0%,
+                    rgba(255, 255, 255, 0.02) 50%,
+                    rgba(10, 132, 255, 0.08) 100%);
+            border: 1px solid var(--border-mid);
+            box-shadow: var(--shadow-card);
+            height: 62vh;
+            min-height: 420px;
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            border-radius: calc(var(--r-xl) - 5px);
+            display: block;
+        }
+
+        #mini-map {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            height: 300px;
+            background: var(--surface-1);
+            border: 1px solid var(--border-mid);
+            display: none;
+            z-index: 9999;
+        }
+
+        #mini-map-container {
+            width: 100%;
+            height: 100%;
+        }
+
+        @media (max-width: 480px) {
+            .navbar {
+                padding: 12px 18px;
+            }
+
+            .container {
+                padding: 18px 14px;
+            }
+
+            .btn {
+                padding: 11px 20px;
+                font-size: 13px;
+            }
+
+            .map-wrapper {
+                height: 55vh;
+                min-height: 340px;
+            }
+
+            .stat-value {
+                font-size: 21px;
+            }
         }
     </style>
 
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-    <script src="https://unpkg.com/leaflet.marker.slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
-</head>
-
-<body>
-
-    <!-- Nav Bar -->
-    <nav class="navbar">
-        <div class="brand">
-            <div class="icon">📍</div>
-            Live Route Tracker
-        </div>
-        <div class="user-area">
-            <span class="user-badge">👤 {{ user.username }}</span>
-            <a href="{% url 'logout' %}" class="logout-btn"
-                style="text-decoration:none;display:inline-block;">Logout</a>
-        </div>
-    </nav>
-
-    <div class="content">
-
-        <h1>GPS Route Tracker</h1>
-
-        <button id="startBtn">Start Tracking</button>
-        <button id="stopBtn" disabled>Stop Tracking</button>
-
-        <div id="map"></div>
-
-        <button onclick="viewOffline()">View Offline Routes</button>
-        <button onclick="viewHistory()">Route History</button>
-
-        <div id="offlineData" style="font-size:12px; white-space:pre-wrap; margin-top:10px;">
-        </div>
-
-        <h2>Turn-by-Turn Instructions</h2>
-
-        <div id="instructions"
-            style="white-space: pre-line; border:1px solid #ccc; padding:10px; height:200px; overflow-y:auto;">
-        </div>
-
-    </div><!-- end .content -->
-
-    <!-- History Overlay -->
-    <div class="history-overlay" id="historyOverlay">
-        <div class="history-panel">
-            <div class="history-header">
-                <h2>📋 Route History</h2>
-                <button class="history-close" onclick="closeHistory()">✕</button>
-            </div>
-            <div class="history-body" id="historyBody">
-                <div class="history-empty">Loading…</div>
-            </div>
-        </div>
-    </div>
-
     <script>
-
-        // ================= BUTTONS =================
-        const startBtn = document.getElementById("startBtn");
-        const stopBtn = document.getElementById("stopBtn");
-
-        // ================= MAP =================
-        var map = L.map('map').setView([20.5937, 78.9629], 5);
-
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-            .addTo(map);
-
-        // ================= STATE =================
-        let route = [];
-        let rawBuffer = [];
-
-        let lockedRoadBearing = null;
-        let lastAcceptedPoint = null;
-
-        let markerLive = null;
-        let livePolyline = null;
-        let finalPolyline = null;
-        let watchID = null;
-        let startMarker = null;
-        let stopMarker = null;
-
-        const SNAP_CHUNK_SIZE = 3;
-
-
-        // ================= SAFE INDEXED DB =================
-        let dbPromise = new Promise((resolve, reject) => {
-
-            if (!window.indexedDB) {
-                console.warn("IndexedDB not supported");
-                resolve(null);
-                return;
-            }
-
-            const request = indexedDB.open("RouteTrackerDB", 1);
-
-            request.onupgradeneeded = function (event) {
-                const db = event.target.result;
-
-                if (!db.objectStoreNames.contains("offlineRoutes")) {
-                    db.createObjectStore("offlineRoutes", {
-                        keyPath: "id",
-                        autoIncrement: true
-                    });
-                }
-            };
-
-            request.onsuccess = function (event) {
-                resolve(event.target.result);
-            };
-
-            request.onerror = function () {
-                console.error("IndexedDB failed to open");
-                resolve(null);
-            };
-        });
-
-
-        // ================= OFFLINE SAVE =================
-        async function saveOffline(routeData) {
-
-            const db = await dbPromise;
-
-            if (!db) {
-                console.warn("No DB available.");
-                return;
-            }
-
-            return new Promise((resolve, reject) => {
-
-                const tx = db.transaction("offlineRoutes", "readwrite");
-                const store = tx.objectStore("offlineRoutes");
-
-                const request = store.add({
-                    route: routeData,
-                    timestamp: Date.now()
-                });
-
-                request.onsuccess = function () {
-                    console.log("Saved offline successfully");
-                    alert("Offline Saved!");
-                    resolve();
-                };
-
-                request.onerror = function () {
-                    console.error("Failed to save offline");
-                    reject();
-                };
-            });
-        }
-
-
-        // ================= COOKIE =================
-        function getCookie(name) {
-
-            let cookieValue = null;
-
-            if (document.cookie && document.cookie !== '') {
-
-                const cookies = document.cookie.split(';');
-
-                for (let cookie of cookies) {
-
-                    cookie = cookie.trim();
-
-                    if (cookie.startsWith(name + '=')) {
-                        cookieValue = decodeURIComponent(
-                            cookie.substring(name.length + 1)
-                        );
-                        break;
-                    }
-                }
-            }
-
-            return cookieValue;
-        }
-
-
-        // ================= ONLINE SAVE =================
-        async function saveOnline(routeData) {
-
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 4000);
-
-            try {
-
-                const response = await fetch("/save_route/", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRFToken": getCookie("csrftoken")
-                    },
-                    body: JSON.stringify({ route: routeData }),
-                    signal: controller.signal
-                });
-
-                clearTimeout(timeout);
-
-                if (!response.ok)
-                    throw new Error("Network response failed");
-
-                const data = await response.json();
-
-                if (data.status !== "ok")
-                    throw new Error("Backend returned error");
-
-                console.log("Saved online successfully");
-
-            } catch (err) {
-                clearTimeout(timeout);
-                throw err;
-            }
-        }
-
-
-        // ================= FINAL SAVE CONTROLLER =================
-        async function finalSave(routeData) {
-
-            console.log("Final route length:", routeData.length);
-
-            if (routeData.length < 2) {
-                console.log("Route too short. Not saving.");
-                return;
-            }
-
-            try {
-                console.log("Trying online save...");
-                await saveOnline(routeData);
-                console.log("Online save success.");
-            }
-            catch (err) {
-                console.warn("Online save failed:", err.message);
-                console.warn("Saving offline instead...");
-                await saveOffline(routeData);
-                console.log("Offline save completed.");
-            }
-        }
-
-
-        // ================= DRAW =================
-        function redrawFinal() {
-
-            if (finalPolyline)
-                map.removeLayer(finalPolyline);
-
-            if (route.length > 1)
-                finalPolyline = L.polyline(route, { color: 'blue', weight: 6, opacity: 0.8 }).addTo(map);
-        }
-
-        function redrawLive() {
-
-            if (livePolyline)
-                map.removeLayer(livePolyline);
-
-            const combined = route.concat(rawBuffer);
-
-            if (combined.length > 1)
-                livePolyline = L.polyline(combined, { color: 'blue', weight: 6, opacity: 0.8, dashArray: '5, 10' }).addTo(map);
-        }
-
-
-        // ================= MOTION FILTER =================
+        // ═══════════════════════════════════════════
+        // MOTION FILTER — Kalman-style GPS smoother
+        // Adapts trust level based on GPS accuracy
+        // ═══════════════════════════════════════════
         class MotionFilter {
-
             constructor() {
                 this.lat = null;
                 this.lon = null;
-
                 this.vLat = 0;
                 this.vLon = 0;
-
                 this.posGain = 0.45;
                 this.velGain = 0.15;
-
                 this.damping = 0.80;
             }
 
@@ -588,484 +505,1347 @@
             }
 
             update(lat, lon, acc) {
-
+                // First point — initialize directly
                 if (this.lat === null) {
                     this.lat = lat;
                     this.lon = lon;
                     return [lat, lon];
                 }
 
-                if (acc < 6) this.posGain = 0.6;
-                else if (acc < 12) this.posGain = 0.4;
-                else this.posGain = 0.15; // Strongly distrust bad GPS
+                // Adapt trust level based on GPS accuracy
+                // Low accuracy number = high quality GPS signal
+                if (acc < 6) this.posGain = 0.6;   // Excellent GPS
+                else if (acc < 12) this.posGain = 0.4;   // Good GPS
+                else this.posGain = 0.15;  // Poor GPS — distrust
 
-                // prediction
+                // Prediction step
                 let pLat = this.lat + this.vLat;
                 let pLon = this.lon + this.vLon;
 
-                // residual
+                // Residual (difference from prediction)
                 let rLat = lat - pLat;
                 let rLon = lon - pLon;
 
-                // correction
-                this.lat = pLat + this.posGain * rLat;
-                this.lon = pLon + this.posGain * rLon;
+                // Correction step
+                this.lat += this.posGain * rLat;
+                this.lon += this.posGain * rLon;
 
+                // Velocity update
                 this.vLat += this.velGain * rLat;
                 this.vLon += this.velGain * rLon;
 
-                // velocity damping
+                // Velocity damping — prevents runaway drift
                 this.vLat *= this.damping;
                 this.vLon *= this.damping;
 
                 return [this.lat, this.lon];
             }
         }
-        const filter = new MotionFilter();
 
-        // ================= BEARING =================
-        function bearing(a, b) {
+        // Create single global instance
+        const motionFilter = new MotionFilter();
 
-            const lat1 = a[0] * Math.PI / 180;
-            const lat2 = b[0] * Math.PI / 180;
-            const dLon = (b[1] - a[1]) * Math.PI / 180;
+        // ═══════════════════════════════════════════
+        // SEGMENT LOCKER + HMM VITERBI
+        // Projects GPS onto road using probabilistic
+        // Hidden Markov Model for maximum accuracy.
+        // Works under trees, dense buildings, etc.
+        // ═══════════════════════════════════════════
+        class SegmentLocker {
+            constructor() {
+                this.segments = [];       // Array of {a, b} road segments
+                this.currentIdx = -1;     // Current locked segment index
+                this.lastLocked = null;   // Last road-locked position
+                this.searchRadius = 12;   // Search ±N segments from current
+                this.maxSnapDist = 60;    // Max meters to snap (beyond = raw GPS)
 
-            const y = Math.sin(dLon) * Math.cos(lat2);
-            const x = Math.cos(lat1) * Math.sin(lat2) -
-                Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
-
-            return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-        }
-
-        // ================= DISTANCE FILTER =================
-        function distance(a, b) {
-
-            const R = 6371000;
-
-            const dLat = (b[0] - a[0]) * Math.PI / 180;
-            const dLon = (b[1] - a[1]) * Math.PI / 180;
-
-            const lat1 = a[0] * Math.PI / 180;
-            const lat2 = b[0] * Math.PI / 180;
-
-            const x =
-                Math.sin(dLat / 2) ** 2 +
-                Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-
-            return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
-        }
-
-        // ================= heading func =================
-        function headingStable(prev, curr) {
-
-            if (!prev) return true;
-
-            const newBearing = bearing(prev, curr);
-
-            if (lockedRoadBearing === null) {
-                lockedRoadBearing = newBearing;
-                return true;
+                // ── HMM Parameters ──
+                this.sigma = 15;          // GPS noise std dev (meters)
+                this.beta = 25;          // Transition decay (meters)
+                this.topK = 5;           // Track top-K candidate states
+                this.candidates = [];     // [{idx, logProb}] — current Viterbi states
+                this.prevProj = null;     // Last GPS projected position per candidate
             }
 
-            let diff = Math.abs(newBearing - lockedRoadBearing);
-
-            if (diff > 180) diff = 360 - diff;
-
-            if (diff < 110) {
-
-                lockedRoadBearing =
-                    0.8 * lockedRoadBearing + 0.2 * newBearing;
-
-                return true;
+            reset() {
+                this.segments = [];
+                this.currentIdx = -1;
+                this.lastLocked = null;
+                this.candidates = [];
+                this.prevProj = null;
             }
 
-            lockedRoadBearing = newBearing;
-            return true;
-        }
-
-        // ================= START =================
-        startBtn.onclick = function () {
-
-            route = [];
-            rawBuffer = [];
-            filter.reset();
-
-            lockedRoadBearing = null;
-            lastAcceptedPoint = null;
-
-            if (startMarker) map.removeLayer(startMarker);
-            if (stopMarker) map.removeLayer(stopMarker);
-            if (finalPolyline) map.removeLayer(finalPolyline);
-            if (livePolyline) map.removeLayer(livePolyline);
-            if (markerLive) map.removeLayer(markerLive);
-
-            startMarker = null;
-            stopMarker = null;
-
-            watchID = navigator.geolocation.watchPosition(
-
-                pos => {
-
-                    const acc = pos.coords.accuracy;
-
-                    if (acc > 20)
-                        return;
-
-                    let p = filter.update(
-                        pos.coords.latitude,
-                        pos.coords.longitude,
-                        acc
-                    );
-
-                    if (!p || isNaN(p[0]) || isNaN(p[1])) {
-                        console.log("Filter error — using raw GPS");
-                        p = [pos.coords.latitude, pos.coords.longitude];
-                    }
-
-                    // ================= GPS JUMP FILTER =================
-                    if (lastAcceptedPoint) {
-
-                        let dist = distance(lastAcceptedPoint, p);
-
-                        if (dist > 40) {
-                            console.log("GPS jump rejected");
-                            return;
-                        }
-
-                    }
-
-                    let accepted = headingStable(lastAcceptedPoint, p);
-
-                    if (accepted) {
-
-                        if (!markerLive) {
-                            markerLive = L.marker(p).addTo(map);
-                            map.setView(p, 17);
-                        }
-                        else {
-                            markerLive.setLatLng(p);
-                        }
-
-                        rawBuffer.push(p);
-                        lastAcceptedPoint = p;
-
-                    }
-                    else {
-                        console.log("Heading rejected noisy point");
-                    }
-
-                    if (accepted && route.length === 0 && !startMarker) {
-                        startMarker = L.marker(p)
-                            .addTo(map)
-                            .bindPopup("Tracking started Here")
-                            .openPopup();
-                    }
-
-                    if (rawBuffer.length >= SNAP_CHUNK_SIZE) {
-                        snapAndAppend([...rawBuffer]);
-                        rawBuffer = [];
-                    }
-
-                    redrawLive();
-                },
-
-                err => alert(err.message),
-
-                {
-                    enableHighAccuracy: true,
-                    maximumAge: 0,
-                    timeout: 9000
+            // Feed new road geometry points from Directions API
+            feedRoadPoints(points) {
+                if (!points || points.length < 2) return;
+                for (let i = 0; i < points.length - 1; i++) {
+                    const a = { lat: parseFloat(points[i].lat), lon: parseFloat(points[i].lon) };
+                    const b = { lat: parseFloat(points[i + 1].lat), lon: parseFloat(points[i + 1].lon) };
+                    if (isNaN(a.lat) || isNaN(a.lon) || isNaN(b.lat) || isNaN(b.lon)) continue;
+                    // Avoid duplicate zero-length segments
+                    const last = this.segments[this.segments.length - 1];
+                    if (last && Math.abs(last.b.lat - a.lat) < 1e-7 && Math.abs(last.b.lon - a.lon) < 1e-7
+                        && Math.abs(b.lat - a.lat) < 1e-7 && Math.abs(b.lon - a.lon) < 1e-7) continue;
+                    this.segments.push({ a, b });
                 }
-            );
-
-            startBtn.disabled = true;
-            stopBtn.disabled = false;
-        };
-
-
-        // ================= STOP =================
-        stopBtn.onclick = async function () {
-
-            lockedRoadBearing = null;
-            lastAcceptedPoint = null;
-
-
-            navigator.geolocation.clearWatch(watchID);
-
-            watchID = null;
-
-            if (rawBuffer.length > 0) {
-                await snapAndAppend([...rawBuffer]);
-                rawBuffer = [];
+                // Auto-lock to last segment if not yet locked
+                if (this.currentIdx < 0 && this.segments.length > 0) {
+                    this.currentIdx = this.segments.length - 1;
+                }
             }
 
-            if (route.length > 0) {
+            // Project point onto line segment → {lat, lon, t, dist}
+            _projectOnSegment(p, seg) {
+                const ax = seg.a.lat, ay = seg.a.lon;
+                const bx = seg.b.lat, by = seg.b.lon;
+                const px = p.lat, py = p.lon;
 
-                const last = route.at(-1);
+                const dx = bx - ax, dy = by - ay;
+                const lenSq = dx * dx + dy * dy;
+                if (lenSq < 1e-14) {
+                    return {
+                        lat: ax, lon: ay, t: 0,
+                        dist: this._approxDist(p, seg.a)
+                    };
+                }
 
-                stopMarker = L.marker(last)
-                    .addTo(map)
-                    .bindPopup("Tracking Stopped Here")
-                    .openPopup();
+                let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
+                t = Math.max(-0.5, Math.min(2.5, t));
+
+                const projLat = ax + t * dx;
+                const projLon = ay + t * dy;
+                const dist = this._approxDist(p, { lat: projLat, lon: projLon });
+
+                return { lat: projLat, lon: projLon, t, dist };
             }
 
-            console.log(route);
+            // Fast approximate distance in meters (equirectangular)
+            _approxDist(a, b) {
+                const R = 6371000;
+                const dLat = (b.lat - a.lat) * Math.PI / 180;
+                const dLon = (b.lon - a.lon) * Math.PI / 180;
+                const avgLat = (a.lat + b.lat) / 2 * Math.PI / 180;
+                const x = dLon * Math.cos(avgLat);
+                return R * Math.sqrt(dLat * dLat + x * x);
+            }
 
-            await finalSave(route);
+            // ── HMM Emission Probability ──
+            // How likely this GPS reading came from segment i
+            // Gaussian: P(gps | segment) ∝ exp(-dist² / 2σ²)
+            _emissionLogProb(dist) {
+                return -(dist * dist) / (2 * this.sigma * this.sigma);
+            }
 
-            startBtn.disabled = false;
-            stopBtn.disabled = true;
-        };
+            // ── HMM Transition Probability ──
+            // How likely to move from segment i to segment j
+            // Exponential decay based on segment index distance
+            // Adjacent segments (±1) get highest probability
+            // Far jumps get heavily penalized
+            _transitionLogProb(fromIdx, toIdx, gpsDistFromPrev) {
+                const segDist = Math.abs(toIdx - fromIdx);
 
-
-        // ================= AUTO SYNC =================
-        window.addEventListener("online", async function () {
-            const db = await dbPromise;
-            if (!db) return;
-            
-            // Read all offline routes
-            const tx = db.transaction("offlineRoutes", "readonly");
-            const store = tx.objectStore("offlineRoutes");
-            const request = store.getAll();
-
-            request.onsuccess = async function () {
-                const allRoutes = request.result;
-                for (let entry of allRoutes) {
-                    try {
-                        await saveOnline(entry.route);
-                        
-                        // Transaction is auto-closed by IndexedDB during the await.
-                        // We MUST open a new transaction to delete the synced route.
-                        const delTx = db.transaction("offlineRoutes", "readwrite");
-                        delTx.objectStore("offlineRoutes").delete(entry.id);
-                        
-                        console.log("Synced route id:", entry.id);
+                // Route distance approximation:
+                // Adjacent = ~0m transition, far = costly
+                let routeDist = 0;
+                if (segDist > 0) {
+                    // Sum segment lengths between from and to
+                    const lo = Math.min(fromIdx, toIdx);
+                    const hi = Math.max(fromIdx, toIdx);
+                    for (let k = lo; k < hi && k < this.segments.length; k++) {
+                        routeDist += this._approxDist(
+                            this.segments[k].a, this.segments[k].b
+                        );
                     }
-                    catch {
-                        console.log("Sync failed, will retry later");
+                }
+
+                // Penalize difference between GPS movement and road distance
+                const diff = Math.abs(gpsDistFromPrev - routeDist);
+                return -diff / this.beta;
+            }
+
+            // ── Main Method: HMM Viterbi Lock ──
+            // Uses emission + transition probabilities
+            // to find the most likely road segment
+            lock(gpsPoint) {
+                if (this.segments.length === 0) return null;
+
+                // Define search window
+                let startIdx, endIdx;
+                if (this.currentIdx >= 0) {
+                    startIdx = Math.max(0, this.currentIdx - this.searchRadius);
+                    endIdx = Math.min(this.segments.length - 1, this.currentIdx + this.searchRadius);
+                } else {
+                    startIdx = 0;
+                    endIdx = this.segments.length - 1;
+                }
+
+                // Project GPS onto all candidate segments
+                const projections = [];
+                for (let i = startIdx; i <= endIdx; i++) {
+                    const proj = this._projectOnSegment(gpsPoint, this.segments[i]);
+                    projections.push({ idx: i, proj });
+                }
+
+                // GPS distance from last locked point (for transition)
+                const gpsDistFromPrev = this.lastLocked
+                    ? this._approxDist(gpsPoint, this.lastLocked)
+                    : 0;
+
+                // ── VITERBI STEP ──
+                if (this.candidates.length === 0) {
+                    // First observation: initialize with emission only
+                    this.candidates = projections
+                        .filter(p => p.proj.dist <= this.maxSnapDist)
+                        .map(p => ({
+                            idx: p.idx,
+                            logProb: this._emissionLogProb(p.proj.dist),
+                            proj: p.proj
+                        }))
+                        .sort((a, b) => b.logProb - a.logProb)
+                        .slice(0, this.topK);
+                } else {
+                    // Subsequent observations: emission × transition
+                    const newCandidates = [];
+
+                    for (const cand of projections) {
+                        if (cand.proj.dist > this.maxSnapDist) continue;
+
+                        const emission = this._emissionLogProb(cand.proj.dist);
+
+                        // Find best previous state for this candidate
+                        let bestPrevProb = -Infinity;
+                        for (const prev of this.candidates) {
+                            const trans = this._transitionLogProb(
+                                prev.idx, cand.idx, gpsDistFromPrev
+                            );
+                            const totalProb = prev.logProb + trans + emission;
+                            if (totalProb > bestPrevProb) {
+                                bestPrevProb = totalProb;
+                            }
+                        }
+
+                        newCandidates.push({
+                            idx: cand.idx,
+                            logProb: bestPrevProb,
+                            proj: cand.proj
+                        });
+                    }
+
+                    // Keep top-K candidates
+                    this.candidates = newCandidates
+                        .sort((a, b) => b.logProb - a.logProb)
+                        .slice(0, this.topK);
+
+                    // Normalize log probabilities to prevent underflow
+                    if (this.candidates.length > 0) {
+                        const maxLog = this.candidates[0].logProb;
+                        for (const c of this.candidates) {
+                            c.logProb -= maxLog;
+                        }
+                    }
+                }
+
+                // No valid candidates
+                if (this.candidates.length === 0) return null;
+
+                // Winner = highest probability candidate
+                const winner = this.candidates[0];
+
+                // Update current segment index
+                this.currentIdx = winner.idx;
+                this.lastLocked = {
+                    lat: winner.proj.lat,
+                    lon: winner.proj.lon
+                };
+
+                return this.lastLocked;
+            }
+        }
+
+        const segmentLocker = new SegmentLocker();
+
+        // ══════════════════════════════════════════════
+        // PART 1 — Global Variable Declarations
+        // ══════════════════════════════════════════════
+        let map;
+        let snappedPolyline = null;
+        let routePolyline = null;
+        let startMarker = null;
+        let endMarker = null;
+        let movingMarker = null;
+        let routePoints = [];
+        let smoothedBuffer = [];
+        // Global variables for new aggressive snap pipeline
+        let snapBuffer = [];
+        let lastSnappedPos = null;
+        let snapBatchBuffer = [];
+        let totalDistanceMeters = 0;
+        let lastPoint = null;
+        let isTracking = false;
+        let watchId = null;
+        let trackingStartTime = null;
+        let durationInterval = null;
+        let _activeAnimation = null;
+        let historyPage = 1;
+
+        let anchorPoints = [];  // Road-snapped anchors
+        let lastAnchor = null;
+        let roadPathBuffer = [];  // Accumulated road geometry
+        const ANCHOR_DIST_M = 25;  // Get road path every 25m
+
+        // ══════════════════════════════════════════════
+        // PART 2 — Utility / Helper Functions
+        // ══════════════════════════════════════════════
+
+        // Django official CSRF cookie reader
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(
+                            cookie.substring(name.length + 1)
+                        );
                         break;
                     }
                 }
-            };
-        });
+            }
+            return cookieValue;
+        }
 
-        // ================= PERIODIC AUTO SYNC (OPTION B) =================
-        async function periodicSync() {
-            const db = await dbPromise;
-            if (!db) return;
+        // Validates CSRF token before use
+        function getValidCsrfToken() {
+            const token = getCookie('csrftoken');
+            if (!token || token.length < 20) {
+                console.error('CSRF token invalid or missing');
+                return null;
+            }
+            return token;
+        }
 
-            // Read all offline routes
-            const tx = db.transaction("offlineRoutes", "readonly");
-            const store = tx.objectStore("offlineRoutes");
+        // Redirect to login on 401
+        function handleResponseAuth(res) {
+            if (res.status === 401) {
+                window.location.href = '/login/';
+                return false;
+            }
+            return true;
+        }
 
-            const request = store.getAll();
+        function updateDistanceDisplay() {
+            const el = document.getElementById('distance-display');
+            if (!el) return;
+            el.textContent = totalDistanceMeters < 1000
+                ? Math.round(totalDistanceMeters) + ' m'
+                : (totalDistanceMeters / 1000).toFixed(2) + ' km';
+        }
 
-            request.onsuccess = async function () {
-                const allRoutes = request.result;
+        function updatePointsCount(count) {
+            const el = document.getElementById('points-count');
+            if (el) el.textContent = count;
+        }
 
-                for (let entry of allRoutes) {
-                    try {
-                        await saveOnline(entry.route);   // try sending to server
-                        
-                        // Transaction is auto-closed by IndexedDB during the await.
-                        // We MUST open a new transaction to delete the synced route.
-                        const delTx = db.transaction("offlineRoutes", "readwrite");
-                        delTx.objectStore("offlineRoutes").delete(entry.id);
-                        
-                        console.log("Periodic sync success for route id:", entry.id);
-                    } catch (err) {
-                        console.log("Periodic sync failed for route id:", entry.id);
-                        // leave it in IndexedDB for next attempt
-                    }
-                }
+        function setTrackingStatus(active) {
+            const el = document.getElementById('tracking-status');
+            if (!el) return;
+            el.innerHTML = active
+                ? '<span class="status-dot live"></span>Live'
+                : '<span class="status-dot idle"></span>Idle';
+        }
+
+        function startDurationTimer() {
+            trackingStartTime = Date.now();
+            durationInterval = setInterval(() => {
+                const elapsed = Math.floor(
+                    (Date.now() - trackingStartTime) / 1000
+                );
+                const mins = String(
+                    Math.floor(elapsed / 60)).padStart(2, '0');
+                const secs = String(elapsed % 60).padStart(2, '0');
+                const el = document.getElementById('trip-duration');
+                if (el) el.textContent = mins + ':' + secs;
+            }, 1000);
+        }
+
+        function stopDurationTimer() {
+            if (durationInterval) {
+                clearInterval(durationInterval);
+                durationInterval = null;
+            }
+        }
+
+        function resetStats() {
+            totalDistanceMeters = 0;
+            lastPoint = null;
+            smoothedBuffer = [];
+            snapBatchBuffer = [];
+            updateDistanceDisplay();
+            updatePointsCount(0);
+            setTrackingStatus(false);
+            stopDurationTimer();
+            const el = document.getElementById('trip-duration');
+            if (el) el.textContent = '00:00';
+        }
+
+        function formatDistance(meters) {
+            if (meters < 1000) return Math.round(meters) + ' m';
+            return (meters / 1000).toFixed(2) + ' km';
+        }
+
+        function formatDuration(seconds) {
+            if (seconds < 60) return seconds + ' sec';
+            if (seconds < 3600) {
+                return Math.floor(seconds / 60) + ' min '
+                    + (seconds % 60) + ' sec';
+            }
+            return Math.floor(seconds / 3600) + ' hr '
+                + Math.floor((seconds % 3600) / 60) + ' min';
+        }
+
+        // ══════════════════════════════════════════════
+        // PART 3 — Marker Helper (AdvancedMarkerElement)
+        // ══════════════════════════════════════════════
+
+        function placeMarker(lat, lon, color, title, scale) {
+            const parsedLat = parseFloat(lat);
+            const parsedLon = parseFloat(lon);
+            if (isNaN(parsedLat) || isNaN(parsedLon)) {
+                console.error('placeMarker: invalid coords', lat, lon);
+                return null;
+            }
+            const pin = new google.maps.marker.PinElement({
+                background: color,
+                borderColor: '#ffffff',
+                glyphColor: '#ffffff',
+                scale: scale || 1.2
+            });
+            return new google.maps.marker.AdvancedMarkerElement({
+                position: { lat: parsedLat, lng: parsedLon },
+                map: map,
+                title: title,
+                content: pin
+            });
+        }
+
+        function removeMarker(marker) {
+            if (marker) marker.map = null;
+            return null;
+        }
+
+        function createNavigationMarker(lat, lon) {
+            // Custom navigation arrow SVG — points upward at 0deg
+            const arrowSvg = `
+              <svg xmlns="http://www.w3.org/2000/svg"
+                   width="40" height="40" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="18"
+                        fill="#4285F4" fill-opacity="0.2"
+                        stroke="#4285F4" stroke-width="1.5"/>
+                <circle cx="20" cy="20" r="8"
+                        fill="#4285F4" stroke="white"
+                        stroke-width="2.5"/>
+                <polygon points="20,4 26,18 20,14 14,18"
+                         fill="white"/>
+              </svg>`;
+
+            const div = document.createElement('div');
+            div.id = 'nav-marker';
+            div.style.cssText = `
+              width: 40px;
+              height: 40px;
+              transform-origin: center;
+              transform: rotate(0deg);
+              transition: transform 0.3s ease;
+              cursor: default;
+            `;
+            div.innerHTML = arrowSvg;
+
+            return new google.maps.marker.AdvancedMarkerElement({
+                position: { lat: parseFloat(lat), lng: parseFloat(lon) },
+                map: map,
+                title: 'Current Position',
+                content: div
+            });
+        }
+
+        function updateMarkerHeading(fromPoint, toPoint) {
+            if (!movingMarker || !fromPoint || !toPoint) return;
+
+            const heading = google.maps.geometry.spherical
+                .computeHeading(
+                    new google.maps.LatLng(
+                        parseFloat(fromPoint.lat),
+                        parseFloat(fromPoint.lon)
+                    ),
+                    new google.maps.LatLng(
+                        parseFloat(toPoint.lat),
+                        parseFloat(toPoint.lon)
+                    )
+                );
+
+            const markerDiv = document.getElementById('nav-marker');
+            if (markerDiv) {
+                markerDiv.style.transform = `rotate(${heading}deg)`;
+            }
+        }
+
+        // ══════════════════════════════════════════════
+        // PART 4 — Google Maps Initialization
+        // ══════════════════════════════════════════════
+
+        function initGoogleMap() {
+            map = new google.maps.Map(
+                document.getElementById('map'), {
+                center: { lat: 16.7050, lng: 74.2433 },
+                zoom: 15,
+                mapTypeId: 'roadmap',
+                mapId: 'GPS_ROUTE_TRACKER_MAP',
+                zoomControl: true,
+                mapTypeControl: false,
+                scaleControl: true,
+                streetViewControl: false,
+                rotateControl: false,
+                fullscreenControl: true
+            }
+            );
+        }
+
+        // CRITICAL — must be assigned before Google Maps loads
+        window.initMap = initGoogleMap;
+
+        // ══════════════════════════════════════════════
+        // PART 5 — GPS Pipeline Functions
+        // ══════════════════════════════════════════════
+
+        // Adaptive sampling interval based on speed
+        function getSamplingInterval(speedMs) {
+            if (speedMs === null || speedMs === undefined) return 2000;
+            if (speedMs < 0.5) return 8000; // stationary
+            if (speedMs < 3.0) return 2000; // walking
+            return 1000;                      // driving
+        }
+
+        // Confidence check — rejects physically impossible jumps
+        function calculateConfidence(point, last) {
+            if (!last) return true;
+            const R = 6371000;
+            const dLat = (point.lat - last.lat) * Math.PI / 180;
+            const dLon = (point.lon - last.lon) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(last.lat * Math.PI / 180) *
+                Math.cos(point.lat * Math.PI / 180) *
+                Math.sin(dLon / 2) ** 2;
+            const dist = R * 2 * Math.atan2(
+                Math.sqrt(a), Math.sqrt(1 - a)
+            );
+            // Reject if distance implies > 200km/h speed
+            return dist < 55;
+        }
+
+        // Moving average over last 3 points
+        function movingAverage(buffer, newPoint) {
+            const win = [...buffer.slice(-2), newPoint];
+            return {
+                lat: parseFloat((win.reduce((s, p) => s + p.lat, 0) / win.length).toFixed(7)),
+                lon: parseFloat((win.reduce((s, p) => s + p.lon, 0) / win.length).toFixed(7))
             };
         }
 
-        // Run periodic sync every 20 seconds
-        setInterval(periodicSync, 20000);
+        // Snap single point to road via backend
+        async function snapPoint(point) {
+            return { lat: parseFloat(point.lat), lon: parseFloat(point.lon) };
+        }
 
-        // ================= REAL-TIME SNAP =================
-        let snapBusy = false;
+        function haversineJS(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) *
+                Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
 
-        async function snapAndAppend(chunk) {
-
-            if (snapBusy) {
-                route.push(...chunk);
-                redrawFinal();
-                return;
-            }
-
-            snapBusy = true;
-
+        // Process batch of points through snap endpoint
+        async function processSnapBatch(batch) {
+            if (batch.length === 0) return [];
             try {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => controller.abort(), 5000);
-
-                const res = await fetch("/snap_chunk/", {
-                    method: "POST",
+                const csrf = getValidCsrfToken();
+                if (!csrf) return batch;
+                const res = await fetch('/snap_chunk/', {
+                    method: 'POST',
                     headers: {
-                        "Content-Type": "application/json",
-                        "X-CSRFToken": getCookie("csrftoken")
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrf
                     },
-                    body: JSON.stringify({ points: chunk }),
-                    signal: controller.signal
+                    body: JSON.stringify({ points: batch })
                 });
-
-                clearTimeout(timeout);
-
-                if (!res.ok) throw new Error("snap failed");
-
-                const data = await res.json();
-                const snapped = data.snapped && data.snapped.length > 0 ? data.snapped : chunk;
-
-                route.push(...snapped);
-                console.log("Chunk snapped:", chunk.length, "→", snapped.length, "pts");
-
-                // --- NEW: Snap the blue dot to the last snapped road point ---
-                if (snapped.length > 0 && markerLive) {
-                    const snappedLastPos = snapped[snapped.length - 1];
-                    markerLive.setLatLng(snappedLastPos);
-                    map.panTo(snappedLastPos);
+                if (!handleResponseAuth(res)) return batch;
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.snapped && data.snapped.length > 0) {
+                        return data.snapped.map(p => ({
+                            lat: parseFloat(p.lat ?? p[0]),
+                            lon: parseFloat(p.lon ?? p.lng ?? p[1])
+                        }));
+                    }
                 }
-
-            } catch (err) {
-                console.warn("Snap failed, using raw:", err.message);
-                route.push(...chunk);
-            }
-
-            snapBusy = false;
-            redrawFinal();
+            } catch (e) { console.error('processSnapBatch error:', e); }
+            return batch;
         }
 
+        // ══════════════════════════════════════════════
+        // PART 6 — Smooth Marker Animation
+        // ══════════════════════════════════════════════
 
-        // ================= VIEW OFFLINE =================
-        async function viewOffline() {
+        function smoothMoveMarker(marker, sLat, sLng, eLat, eLng, dur) {
+            // Cancel any in-progress animation first
+            if (_activeAnimation) {
+                cancelAnimationFrame(_activeAnimation);
+                _activeAnimation = null;
+            }
+            const start = performance.now();
+            function step(now) {
+                const t = Math.min((now - start) / dur, 1);
+                marker.position = {
+                    lat: sLat + (eLat - sLat) * t,
+                    lng: sLng + (eLng - sLng) * t
+                };
+                if (t < 1) {
+                    _activeAnimation = requestAnimationFrame(step);
+                } else {
+                    _activeAnimation = null;
+                }
+            }
+            _activeAnimation = requestAnimationFrame(step);
+        }
 
-            const db = await dbPromise;
+        // ══════════════════════════════════════════════
+        // PART 7 — GPS Success / Error Callbacks
+        // ══════════════════════════════════════════════
 
-            if (!db) {
-                alert("IndexedDB not available");
+        async function onGPSSuccess(position) {
+            if (!isTracking) return;
+
+            const rawLat = parseFloat(position.coords.latitude);
+            const rawLon = parseFloat(position.coords.longitude);
+            const acc = position.coords.accuracy || 20;
+
+            if (isNaN(rawLat) || isNaN(rawLon)) return;
+
+            // Apply motion filter for smooth movement
+            const [filtLat, filtLon] = motionFilter.update(
+                rawLat, rawLon, acc
+            );
+
+            // Confidence check — reject impossible jumps
+            if (!calculateConfidence(
+                { lat: filtLat, lon: filtLon }, lastPoint
+            )) return;
+
+            // Distance filter — ignore micro movements < 2m
+            if (lastPoint) {
+                const dist = haversineJS(
+                    lastPoint.lat, lastPoint.lon, filtLat, filtLon
+                );
+                if (dist < 2) return;
+            }
+
+            const currentPoint = { lat: filtLat, lon: filtLon };
+
+            // ── INSTANT DISPLAY: Use segment locker or last snap ──
+            // This gives ZERO lag while we wait for Roads API
+            const locked = segmentLocker.lock(currentPoint);
+            // Prefer: last snapped position > segment lock > raw GPS
+            const displayLat = lastSnappedPos ? lastSnappedPos.lat
+                : locked ? locked.lat
+                    : filtLat;
+            const displayLon = lastSnappedPos ? lastSnappedPos.lon
+                : locked ? locked.lon
+                    : filtLon;
+
+
+
+            // ── Draw raw GPS faintly ──
+
+
+            // Place start marker on first point
+            if (!startMarker && !lastPoint) {
+                startMarker = placeMarker(
+                    displayLat, displayLon, '#34A853', 'Start', 1.2
+                );
+            }
+
+            // Update marker — uses road-center position
+            if (!movingMarker) {
+                movingMarker = createNavigationMarker(
+                    displayLat, displayLon
+                );
+
+            } else if (lastPoint) {
+                // Always animate FROM current marker screen position
+                // so there is never a snap-back jump
+                const prevPos = movingMarker.position;
+                const prevLat = prevPos ? parseFloat(prevPos.lat) : displayLat;
+                const prevLon = prevPos ? parseFloat(prevPos.lng) : displayLon;
+
+                updateMarkerHeading(
+                    { lat: prevLat, lon: prevLon },
+                    { lat: displayLat, lon: displayLon }
+                );
+                smoothMoveMarker(
+                    movingMarker,
+                    prevLat, prevLon,
+                    displayLat, displayLon, 600
+                );
+            }
+
+            // Update distance
+            if (lastPoint) {
+                const seg = haversineJS(
+                    lastPoint.lat, lastPoint.lon,
+                    filtLat, filtLon
+                );
+                if (!isNaN(seg) && isFinite(seg) && seg < 200) {
+                    totalDistanceMeters += seg;
+                    updateDistanceDisplay();
+                }
+            }
+
+            lastPoint = currentPoint;
+
+            // Only push to routePoints if we have a snapped position
+            // Raw GPS only as absolute fallback on very first point
+            const pushLat = lastSnappedPos ? lastSnappedPos.lat
+                : locked ? locked.lat
+                    : filtLat;
+            const pushLon = lastSnappedPos ? lastSnappedPos.lon
+                : locked ? locked.lon
+                    : filtLon;
+
+            routePoints.push({ lat: pushLat, lon: pushLon });
+            if (snappedPolyline) {
+                snappedPolyline.setPath(
+                    routePoints.map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }))
+                );
+            }
+            updatePointsCount(routePoints.length);
+            map.panTo({ lat: displayLat, lng: displayLon });
+
+            // ══════════════════════════════════════════════
+            // LAYER A: SNAP TO ROAD every 3 GPS points
+            // Uses Google Roads API (snapToRoads) — this is
+            // what actually GLUES the marker to road center.
+            // The segment locker above provides instant
+            // positioning while we wait for this response.
+            // ══════════════════════════════════════════════
+            snapBuffer.push(currentPoint);
+
+            if (snapBuffer.length >= 3) {
+                const batch = [...snapBuffer];
+                snapBuffer = [];
+
+                // Fire in background — never blocks GPS
+                ; (async () => {
+                    try {
+                        const csrf = getValidCsrfToken();
+                        if (!csrf) return;
+
+                        const res = await fetch('/snap_chunk/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrf
+                            },
+                            body: JSON.stringify({ points: batch })
+                        });
+
+                        if (!handleResponseAuth(res)) return;
+                        if (!res.ok) return;
+
+                        const data = await res.json();
+                        const snapped = data.snapped || [];
+
+                        if (snapped.length === 0) return;
+
+                        // Parse snapped points
+                        const snappedPts = snapped.map(p => ({
+                            lat: parseFloat(p.lat ?? p[0]),
+                            lon: parseFloat(p.lon ?? p.lng ?? p[1])
+                        })).filter(p => !isNaN(p.lat) && !isNaN(p.lon));
+
+                        //if (snappedPts.length === 0) return;
+                        if (snappedPts.length > 0) {
+
+                            const newest = snappedPts[snappedPts.length - 1];
+                            lastSnappedPos = newest;
+
+                            segmentLocker.feedRoadPoints(snappedPts);
+
+                            const spliceStart = Math.max(0, routePoints.length - batch.length);
+                            routePoints.splice(spliceStart, batch.length, ...snappedPts);
+
+                            if (snappedPolyline) {
+                                snappedPolyline.setPath(
+                                    routePoints.map(p => ({
+                                        lat: parseFloat(p.lat),
+                                        lng: parseFloat(p.lon)
+                                    }))
+                                );
+                            }
+                        }
+
+                    } catch (e) {
+                        console.warn('Snap chunk failed:', e.message);
+                    }
+                })();
+            }
+
+            // ══════════════════════════════════════════════
+            // LAYER B: Road path every 20m (for polyline)
+            // Uses Google Directions API for accurate
+            // road geometry on the drawn route line.
+            // ══════════════════════════════════════════════
+            if (!lastAnchor) {
+                lastAnchor = currentPoint;
+                anchorPoints.push(currentPoint);
                 return;
             }
 
-            const tx = db.transaction("offlineRoutes", "readonly");
-            const store = tx.objectStore("offlineRoutes");
-            const request = store.getAll();
+            const distFromAnchor = haversineJS(
+                lastAnchor.lat, lastAnchor.lon,
+                filtLat, filtLon
+            );
 
-            request.onsuccess = function () {
+            if (distFromAnchor >= ANCHOR_DIST_M) {
+                const origin = { ...lastAnchor };
+                const destination = { ...currentPoint };
+                lastAnchor = currentPoint;
+                anchorPoints.push(currentPoint);
 
-                const data = request.result;
+                ; (async () => {
+                    try {
+                        const csrf = getValidCsrfToken();
+                        if (!csrf) return;
 
-                if (data.length === 0) {
-                    document.getElementById("offlineData").innerText =
-                        "No offline routes stored.";
-                    return;
+                        const res = await fetch('/get_road_path/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrf
+                            },
+                            body: JSON.stringify({ origin, destination })
+                        });
+
+                        if (!handleResponseAuth(res)) return;
+                        if (!res.ok) return;
+
+                        const data = await res.json();
+                        const roadPoints = data.path || [];
+
+                        if (roadPoints.length < 2) return;
+
+                        // Feed road geometry to segment locker too
+                        segmentLocker.feedRoadPoints(roadPoints);
+
+                    } catch (e) {
+                        console.warn('Road path fetch failed:', e.message);
+                    }
+                })();
+            }
+        }
+
+        function onGPSError(error) {
+            console.error('GPS Error:', error.code, error.message);
+        }
+
+        // ══════════════════════════════════════════════
+        // PART 8 — Start / Stop Tracking
+        // ══════════════════════════════════════════════
+
+        function startTracking() {
+            // Reset all state
+            routePoints = [];
+            anchorPoints = [];
+            roadPathBuffer = [];
+            lastAnchor = null;
+            motionFilter.reset();
+            segmentLocker.reset();
+            resetStats();
+
+            // Remove existing layers
+
+            if (snappedPolyline) { snappedPolyline.setMap(null); snappedPolyline = null; }
+            if (routePolyline) { routePolyline.setMap(null); routePolyline = null; }
+            startMarker = removeMarker(startMarker);
+            endMarker = removeMarker(endMarker);
+            movingMarker = removeMarker(movingMarker);
+
+            const card = document.getElementById('route-summary');
+            if (card) card.remove();
+
+            // LAYER 1 — Visible live tracking line
+            // Shows immediately as user moves
+
+
+            // LAYER 2 — Road-accurate snapped line
+            // Updates in background as road paths return
+            snappedPolyline = new google.maps.Polyline({
+                path: [],
+                geodesic: true,
+                strokeColor: '#1a73e8',  // Slightly darker blue
+                strokeOpacity: 1.0,        // Solid — this is the true route
+                strokeWeight: 6,
+                map: map,
+                zIndex: 10          // Renders on top of live line
+            });
+
+            setTrackingStatus(true);
+            startDurationTimer();
+            isTracking = true;
+
+            if (!navigator.geolocation) {
+                alert('Geolocation not supported.');
+                return;
+            }
+
+            watchId = navigator.geolocation.watchPosition(
+                onGPSSuccess, onGPSError,
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 0
                 }
-
-                let output = "";
-
-                data.forEach((item, index) => {
-
-                    output += "Route " + (index + 1) + "\n";
-                    output += "Saved at: " +
-                        new Date(item.timestamp).toLocaleString() + "\n";
-                    output += "Total Points: " +
-                        item.route.length + "\n";
-                    output += JSON.stringify(item.route) + "\n\n";
-                });
-
-                document.getElementById("offlineData").innerText = output;
-            };
+            );
         }
 
+        async function stopTracking() {
+            if (!isTracking) return;
+            isTracking = false;
+            setTrackingStatus(false);
+            stopDurationTimer();
 
-        // ================= ROUTE HISTORY =================
-        let historyPolyline = null;
-        let historyData = [];       // cache fetched data
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
 
-        function closeHistory() {
-            document.getElementById('historyOverlay').classList.remove('active');
-        }
+            movingMarker = removeMarker(movingMarker);
 
-        async function viewHistory() {
+            // Wait briefly for any in-flight road path
+            // requests to complete before saving
+            await new Promise(resolve => setTimeout(resolve, 1500));
 
-            const overlay = document.getElementById('historyOverlay');
-            const body = document.getElementById('historyBody');
+            if (routePoints.length === 0) {
+                alert('No route points recorded.');
+                return;
+            }
 
-            overlay.classList.add('active');
-            body.innerHTML = '<div class="history-empty">Loading…</div>';
+            // Place end marker at last known position
+            if (lastPoint) {
+                const endLat = parseFloat(lastPoint.lat);
+                const endLon = parseFloat(lastPoint.lon);
+                if (!isNaN(endLat) && !isNaN(endLon)) {
+                    endMarker = placeMarker(
+                        endLat, endLon, '#EA4335', 'End Point', 1.2
+                    );
+                }
+            }
+
+            // Save road-snapped route to backend
+            const csrf = getValidCsrfToken();
+            if (!csrf) {
+                alert('Security token missing. Please refresh.');
+                return;
+            }
 
             try {
-                const res = await fetch('/route_history/');
-                if (!res.ok) throw new Error('fetch failed');
+                const res = await fetch('/save_route/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrf
+                    },
+                    body: JSON.stringify({ points: routePoints })
+                });
+                if (!handleResponseAuth(res)) return;
+                if (res.ok) {
+                    console.log('Route saved successfully');
+                } else {
+                    const err = await res.json();
+                    alert('Save failed: ' + (err.message || err.error));
+                }
+            } catch (e) {
+                console.error('Save error:', e);
+            }
+        }
+
+        // ══════════════════════════════════════════════
+        // PART 9 — Route History
+        // ══════════════════════════════════════════════
+
+        async function viewHistory(page = 1) {
+            try {
+                const res = await fetch(
+                    `/route_history/?page=${page}&limit=10`,
+                    { method: 'GET', headers: { 'Content-Type': 'application/json' } }
+                );
+                if (!handleResponseAuth(res)) return;
+                if (!res.ok) return;
 
                 const data = await res.json();
-                historyData = data.routes || [];
+                const list = document.getElementById('history-list');
 
-                if (historyData.length === 0) {
-                    body.innerHTML = '<div class="history-empty">No routes recorded yet.</div>';
-                    return;
+                if (page === 1) list.innerHTML = '';
+
+                if (data.routes.length === 0 && page === 1) {
+                    list.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:20px;">No routes saved yet.</p>';
                 }
 
-                // Group by date
-                const groups = {};
-                historyData.forEach((r, i) => {
-                    if (!groups[r.date]) groups[r.date] = [];
-                    groups[r.date].push({ ...r, _idx: i });
+                data.routes.forEach(route => {
+                    const card = document.createElement('div');
+                    card.className = 'history-route-card';
+                    card.innerHTML = `
+          <div class="history-route-title">
+            Route — ${route.created_at}
+          </div>
+          <div class="history-route-stats">
+            <div class="history-stat">
+              Distance: <span>${formatDistance(route.distance_meters)}</span>
+            </div>
+            <div class="history-stat">
+              Duration: <span>${formatDuration(route.duration_seconds)}</span>
+            </div>
+            <div class="history-stat">
+              Points: <span>${route.total_points}</span>
+            </div>
+          </div>
+          <button class="btn-view-route"
+            onclick="loadHistoryRoute(${JSON.stringify(route).replace(/"/g, '&quot;')})">
+            View on Map
+          </button>
+        `;
+                    list.appendChild(card);
                 });
 
-                let html = '';
-                for (const [date, routes] of Object.entries(groups)) {
-                    html += '<div class="history-date-group">';
-                    html += '<div class="history-date-label">📅 ' + date + '</div>';
+                // Load More button
+                const existingLoadMore = document.getElementById('load-more-btn');
+                if (existingLoadMore) existingLoadMore.remove();
 
-                    for (const r of routes) {
-                        html += '<div class="history-card">';
-                        html += '  <div class="info">';
-                        html += '    <span class="time">🕐 ' + r.time + '</span>';
-                        html += '    <span class="meta">' + r.total_points + ' GPS points</span>';
-                        html += '  </div>';
-                        html += '  <button class="view-btn" onclick="showRouteOnMap(' + r._idx + ')">View on Map</button>';
-                        html += '</div>';
-                    }
-
-                    html += '</div>';
+                if (data.current_page < data.total_pages) {
+                    const btn = document.createElement('button');
+                    btn.id = 'load-more-btn';
+                    btn.className = 'load-more-btn';
+                    btn.textContent = 'Load More';
+                    btn.onclick = () => viewHistory(data.current_page + 1);
+                    list.appendChild(btn);
                 }
 
-                body.innerHTML = html;
+                document.getElementById('history-modal').style.display = 'block';
 
-            } catch (err) {
-                body.innerHTML = '<div class="history-empty">Failed to load history.</div>';
-                console.error(err);
-            }
+            } catch (e) { console.error('History error:', e); }
         }
 
-        function showRouteOnMap(idx) {
-
-            const r = historyData[idx];
-            if (!r || !r.route_points) return;
-
-            // Remove previous history polyline
-            if (historyPolyline) {
-                map.removeLayer(historyPolyline);
-                historyPolyline = null;
-            }
-
-            // Draw in orange to distinguish from live route
-            historyPolyline = L.polyline(r.route_points, {
-                color: '#f59e0b',
-                weight: 5,
-                opacity: 0.85
-            }).addTo(map);
-
-            map.fitBounds(historyPolyline.getBounds(), { padding: [40, 40] });
-
-            // Close the panel
-            closeHistory();
+        function closeHistoryModal() {
+            document.getElementById('history-modal').style.display = 'none';
         }
 
+        function loadHistoryRoute(routeData) {
+
+            if (snappedPolyline) { snappedPolyline.setMap(null); snappedPolyline = null; }
+            if (routePolyline) { routePolyline.setMap(null); routePolyline = null; }
+            startMarker = removeMarker(startMarker);
+            endMarker = removeMarker(endMarker);
+
+            const rawPoints = routeData.route_points;
+            if (!rawPoints || rawPoints.length === 0) {
+                console.error('No route points in history data');
+                return;
+            }
+
+            // Normalize every point to {lat: float, lng: float}
+            // for Google Maps — handles all possible formats
+            const path = [];
+            rawPoints.forEach((p, i) => {
+                let lat, lon;
+                try {
+                    if (Array.isArray(p)) {
+                        lat = parseFloat(p[0]);
+                        lon = parseFloat(p[1]);
+                    } else if (typeof p === 'object') {
+                        lat = parseFloat(
+                            p.lat ?? p.latitude ?? p[0] ?? 0
+                        );
+                        lon = parseFloat(
+                            p.lon ?? p.lng ?? p.longitude ?? p[1] ?? 0
+                        );
+                    }
+                    if (!isNaN(lat) && !isNaN(lon) &&
+                        lat >= -90 && lat <= 90 &&
+                        lon >= -180 && lon <= 180) {
+                        path.push({ lat, lng: lon });
+                    }
+                } catch (e) {
+                    console.warn(e);
+                }
+            });
+
+            if (path.length < 2) {
+                alert('Not enough valid points to display this route.');
+                return;
+            }
+
+            // Draw historical polyline
+            routePolyline = new google.maps.Polyline({
+                path: path,
+                geodesic: true,
+                strokeColor: '#4285F4',
+                strokeOpacity: 0.9,
+                strokeWeight: 5,
+                map: map
+            });
+
+            // RED start marker
+            startMarker = placeMarker(
+                path[0].lat, path[0].lng,
+                '#EA4335', 'Start Point', 1.2
+            );
+
+            // BLUE end marker
+            const last = path[path.length - 1];
+            endMarker = placeMarker(
+                last.lat, last.lng,
+                '#4285F4', 'End Point', 1.2
+            );
+
+            // Safe fitBounds
+            try {
+                const bounds = new google.maps.LatLngBounds();
+                path.forEach(p => bounds.extend(p));
+                if (!bounds.isEmpty()) {
+                    map.fitBounds(bounds, { padding: 60 });
+                }
+            } catch (e) {
+                console.error('fitBounds error:', e);
+                map.setCenter(path[0]);
+                map.setZoom(15);
+            }
+
+            showRouteSummaryCard(routeData);
+            closeHistoryModal();
+        }
+
+        function showRouteSummaryCard(routeData) {
+            const existing = document.getElementById('route-summary');
+            if (existing) existing.remove();
+
+            const card = document.createElement('div');
+            card.id = 'route-summary';
+            card.className = 'route-summary-card';
+            card.innerHTML = `
+      <div class="summary-header">
+        <span class="summary-title">Viewing Saved Route</span>
+        <button class="btn-clear-route"
+                onclick="clearHistoryRoute()">✕ Clear</button>
+      </div>
+      <div class="summary-stats">
+        <div class="summary-stat">
+          <span class="summary-label">Distance</span>
+          <span class="summary-value">
+            ${formatDistance(routeData.distance_meters)}
+          </span>
+        </div>
+        <div class="summary-stat">
+          <span class="summary-label">Duration</span>
+          <span class="summary-value">
+            ${formatDuration(routeData.duration_seconds)}
+          </span>
+        </div>
+        <div class="summary-stat">
+          <span class="summary-label">Points</span>
+          <span class="summary-value">
+            ${routeData.total_points}
+          </span>
+        </div>
+        <div class="summary-stat">
+          <span class="summary-label">Saved On</span>
+          <span class="summary-value"
+                style="font-size:13px;font-family:var(--font-body)">
+            ${routeData.created_at}
+          </span>
+        </div>
+      </div>
+      <div class="summary-legend">
+        <span class="legend-item">
+          <span class="legend-dot red"></span>Start Point
+        </span>
+        <span class="legend-item">
+          <span class="legend-dot blue"></span>End Point
+        </span>
+      </div>
+    `;
+
+            const mapWrapper = document.querySelector('.map-wrapper');
+            mapWrapper.insertAdjacentElement('afterend', card);
+        }
+
+        function clearHistoryRoute() {
+            if (routePolyline) { routePolyline.setMap(null); routePolyline = null; }
+            startMarker = removeMarker(startMarker);
+            endMarker = removeMarker(endMarker);
+            const card = document.getElementById('route-summary');
+            if (card) card.remove();
+        }
+
+        // ══════════════════════════════════════════════
+        // PART 10 — Button Event Bindings
+        // ══════════════════════════════════════════════
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const startBtn = document.getElementById('start-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            const historyBtn = document.getElementById('history-btn');
+
+            if (startBtn) startBtn.addEventListener('click', startTracking);
+            if (stopBtn) stopBtn.addEventListener('click', stopTracking);
+            if (historyBtn) historyBtn.addEventListener(
+                'click', () => viewHistory(1)
+            );
+        });
     </script>
 
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&loading=async&callback=initMap&libraries=geometry,marker"
+        async defer>
+        </script>
+</head>
+
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                <circle cx="12" cy="10" r="3" />
+            </svg>
+            Live Route Tracker
+        </div>
+        <div class="navbar-right">
+            <div class="user-badge">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                </svg>
+                {{ request.user.username }}
+            </div>
+            <a href="/logout/" class="btn-logout">Logout</a>
+        </div>
+    </nav>
+
+    <!-- Hidden CSRF form — required for AJAX on AJAX-only pages -->
+    <form style="display:none;">{% csrf_token %}</form>
+
+    <div class="main-container">
+        <h1 class="page-title">GPS Route Tracker</h1>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <span class="stat-label">Status</span>
+                <span class="stat-value" id="tracking-status">
+                    <span class="status-dot idle"></span>Idle
+                </span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Distance</span>
+                <span class="stat-value" id="distance-display">0 m</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Points</span>
+                <span class="stat-value" id="points-count">0</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-label">Duration</span>
+                <span class="stat-value" id="trip-duration">00:00</span>
+            </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="controls">
+            <button id="start-btn" class="btn btn-start">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <polygon points="5,3 19,12 5,21" />
+                </svg>
+                Start Tracking
+            </button>
+            <button id="stop-btn" class="btn btn-stop">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                </svg>
+                Stop Tracking
+            </button>
+            <button id="history-btn" class="btn btn-outline">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12,6 12,12 16,14" />
+                </svg>
+                Route History
+            </button>
+            <button id="offline-btn" class="btn btn-outline">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                    <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
+                    <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
+                </svg>
+                Offline Routes
+            </button>
+        </div>
+
+        <button id="mini-map-btn">Mini Map</button>
+
+        <div class="map-wrapper">
+            <div id="map"></div>
+        </div>
+
+        <div id="mini-map">
+            <div id="mini-map-container"></div>
+        </div>
+
+        <!-- Route summary card injected here dynamically -->
+
+        <!-- Turn by Turn Instructions -->
+        <div class="instructions-card">
+            <div class="instructions-title">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2"
+                    style="margin-right:8px;vertical-align:middle">
+                    <polygon points="3,11 22,2 13,21 11,13" />
+                </svg>
+                Turn-by-Turn Instructions
+            </div>
+            <div class="instructions-body" id="instructions-body">
+                Start tracking to see route instructions.
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" style="display:none; position:fixed;
+       top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8);
+       z-index:2000; overflow-y:auto; padding:20px;">
+        <div style="max-width:700px; margin:40px auto; background:var(--bg-card);
+                border-radius:16px; padding:24px; border:1px solid var(--border);">
+            <div style="display:flex; justify-content:space-between;
+                  align-items:center; margin-bottom:20px;">
+                <h2 style="font-size:18px; font-weight:700;">Route History</h2>
+                <button onclick="closeHistoryModal()" style="background:transparent; border:none;
+                       color:var(--text-secondary); font-size:20px;
+                       cursor:pointer;">✕</button>
+            </div>
+            <div id="history-list"></div>
+        </div>
+    </div>
 </body>
 
 </html>
