@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Routehawk</string>
+    <string name="title_activity_main">Routehawk</string>
+    <string name="package_name">com.routehawk.app</string>
+    <string name="custom_url_scheme">com.routehawk.app</string>
+</resources>

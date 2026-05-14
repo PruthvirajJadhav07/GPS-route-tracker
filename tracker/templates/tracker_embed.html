@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Tracker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont,
+                'Segoe UI', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Map takes full space */
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* Floating controls bottom center */
+        .embed-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 999;
+        }
+
+        .embed-btn {
+            padding: 10px 24px;
+            border-radius: 24px;
+            border: none;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: transform 0.15s ease,
+                box-shadow 0.15s ease;
+        }
+
+        .embed-btn:active {
+            transform: scale(0.96);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn-start {
+            background: #1a73e8;
+            color: white;
+        }
+
+        .btn-stop {
+            background: #EA4335;
+            color: white;
+        }
+
+        /* Floating stats top left */
+        .embed-stats {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            background: white;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-size: 13px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            z-index: 999;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #333;
+        }
+
+        .stat-label {
+            color: #888;
+            font-size: 11px;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: #1a73e8;
+        }
+
+        /* Status dot */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.live {
+            background: #34A853;
+            animation: pulse-live 1.2s infinite;
+        }
+
+        .status-dot.idle {
+            background: #9E9E9E;
+        }
+
+        @keyframes pulse-live {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(1.4);
+            }
+        }
+
+        /* Powered by badge */
+        .powered-by {
+            position: absolute;
+            bottom: 70px;
+            right: 12px;
+            background: white;
+            border-radius: 8px;
+            padding: 4px 10px;
+            font-size: 11px;
+            color: #888;
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+            z-index: 999;
+        }
+
+        .powered-by span {
+            color: #1a73e8;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Floating stats -->
+    <div class="embed-stats">
+        <div class="stat-row">
+            <span class="status-dot idle" id="tracking-status-dot"></span>
+            <span id="embed-status" class="stat-label">Idle</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Distance</span>
+            <span class="stat-value" id="embed-distance">0 m</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Duration</span>
+            <span class="stat-value" id="embed-duration">00:00</span>
+        </div>
+        <div class="stat-row">
+            <span class="stat-label">Speed</span>
+            <span class="stat-value" id="embed-speed">0 km/h</span>
+        </div>
+    </div>
+
+    <!-- Start / Stop buttons -->
+    <div class="embed-controls">
+        <button class="embed-btn btn-start" id="embed-start-btn" onclick="startTracking()">
+            ▶ Start
+        </button>
+        <button class="embed-btn btn-stop" id="embed-stop-btn" onclick="stopTracking()" style="display:none;">
+            ⏹ Stop
+        </button>
+    </div>
+
+    <!-- Powered by badge -->
+    <div class="powered-by">
+        Powered by <span>Your Company</span>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════
+        // EMBED-SPECIFIC: Override display functions
+        // for the clean embed layout
+        // ═══════════════════════════════════════════
+
+        // Global state
+        let map;
+        let snappedPolyline = null;
+        let routePolyline = null;
+        let startMarker = null;
+        let endMarker = null;
+        let movingMarker = null;
+        let routePoints = [];
+        let smoothedBuffer = [];
+        let snapBuffer = [];
+        let lastSnappedPos = null;
+        let snapBatchBuffer = [];
+        let totalDistanceMeters = 0;
+        let lastPoint = null;
+        let isTracking = false;
+        let watchId = null;
+        let trackingStartTime = null;
+        let durationInterval = null;
+        let _activeAnimation = null;
+
+        let anchorPoints = [];
+        let lastAnchor = null;
+        let roadPathBuffer = [];
+        const ANCHOR_DIST_M = 25;
+
+        // Speed state
+        let lastSpeedPoint = null;
+        let lastSpeedTime = null;
+        let currentSpeedKmh = 0;
+
+        // ═══════════════════════════════════════════
+        // DISPLAY OVERRIDES FOR EMBED
+        // ═══════════════════════════════════════════
+
+        function updateDistanceDisplay() {
+            const el = document.getElementById('embed-distance');
+            if (!el) return;
+            el.textContent = totalDistanceMeters < 1000
+                ? Math.round(totalDistanceMeters) + ' m'
+                : (totalDistanceMeters / 1000).toFixed(2) + ' km';
+        }
+
+        function updatePointsCount(count) {
+            // No points counter in embed view
+        }
+
+        function setTrackingStatus(active) {
+            const dot = document.getElementById('tracking-status-dot');
+            const label = document.getElementById('embed-status');
+            const startBtn = document.getElementById('embed-start-btn');
+            const stopBtn = document.getElementById('embed-stop-btn');
+
+            if (dot) {
+                dot.className = 'status-dot ' + (active ? 'live' : 'idle');
+            }
+            if (label) label.textContent = active ? 'Live' : 'Idle';
+            if (startBtn) startBtn.style.display = active ? 'none' : 'block';
+            if (stopBtn) stopBtn.style.display = active ? 'block' : 'none';
+        }
+
+        function startDurationTimer() {
+            trackingStartTime = Date.now();
+            durationInterval = setInterval(() => {
+                const elapsed = Math.floor(
+                    (Date.now() - trackingStartTime) / 1000
+                );
+                const mins = String(
+                    Math.floor(elapsed / 60)).padStart(2, '0');
+                const secs = String(elapsed % 60).padStart(2, '0');
+                const el = document.getElementById('embed-duration');
+                if (el) el.textContent = mins + ':' + secs;
+            }, 1000);
+        }
+
+        function stopDurationTimer() {
+            if (durationInterval) {
+                clearInterval(durationInterval);
+                durationInterval = null;
+            }
+        }
+
+        function resetStats() {
+            totalDistanceMeters = 0;
+            lastPoint = null;
+            smoothedBuffer = [];
+            snapBatchBuffer = [];
+            updateDistanceDisplay();
+            setTrackingStatus(false);
+            stopDurationTimer();
+            const el = document.getElementById('embed-duration');
+            if (el) el.textContent = '00:00';
+        }
+
+        function updateSpeed(currentPoint) {
+            const now = Date.now();
+            if (!lastSpeedPoint || !lastSpeedTime) {
+                lastSpeedPoint = currentPoint;
+                lastSpeedTime = now;
+                return;
+            }
+            const distM = haversineJS(
+                lastSpeedPoint.lat, lastSpeedPoint.lon,
+                currentPoint.lat, currentPoint.lon
+            );
+            const timeS = (now - lastSpeedTime) / 1000;
+            if (timeS < 1) return;
+            currentSpeedKmh = Math.round((distM / timeS) * 3.6);
+            if (currentSpeedKmh > 200) currentSpeedKmh = 0;
+            const el = document.getElementById('embed-speed');
+            if (el) el.textContent = currentSpeedKmh + ' km/h';
+            lastSpeedPoint = currentPoint;
+            lastSpeedTime = now;
+        }
+
+        function resetSpeedDisplay() {
+            lastSpeedPoint = null;
+            lastSpeedTime = null;
+            currentSpeedKmh = 0;
+            const el = document.getElementById('embed-speed');
+            if (el) el.textContent = '0 km/h';
+        }
+
+        // ═══════════════════════════════════════════
+        // UTILITY FUNCTIONS
+        // ═══════════════════════════════════════════
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(
+                            cookie.substring(name.length + 1)
+                        );
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        function getValidCsrfToken() {
+            const token = getCookie('csrftoken');
+            if (!token || token.length < 20) {
+                console.error('CSRF token invalid or missing');
+                return null;
+            }
+            return token;
+        }
+
+        function handleResponseAuth(res) {
+            if (res.status === 401) {
+                console.warn('Unauthorized — embed requires login');
+                return false;
+            }
+            return true;
+        }
+
+        function haversineJS(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) ** 2 +
+                Math.cos(lat1 * Math.PI / 180) *
+                Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon / 2) ** 2;
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        function calculateConfidence(point, last) {
+            if (!last) return true;
+            const dist = haversineJS(
+                point.lat, point.lon, last.lat, last.lon
+            );
+            return dist < 55;
+        }
+
+        // ═══════════════════════════════════════════
+        // MARKER AND MAP
+        // ═══════════════════════════════════════════
+
+        function placeMarker(lat, lon, color, title, scale) {
+            const pin = new google.maps.marker.PinElement({
+                background: color,
+                borderColor: '#ffffff',
+                glyphColor: '#ffffff',
+                scale: scale || 1.2
+            });
+            return new google.maps.marker.AdvancedMarkerElement({
+                position: { lat: parseFloat(lat), lng: parseFloat(lon) },
+                map: map,
+                title: title,
+                content: pin
+            });
+        }
+
+        function removeMarker(marker) {
+            if (marker) marker.map = null;
+            return null;
+        }
+
+        function createNavigationMarker(lat, lon) {
+            const div = document.createElement('div');
+            div.id = 'nav-marker';
+            div.style.cssText = `
+            width: 40px; height: 40px;
+            transform-origin: center;
+            transform: rotate(0deg);
+            transition: transform 0.3s ease;
+        `;
+            div.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg"
+                 width="40" height="40" viewBox="0 0 40 40">
+                <circle cx="20" cy="20" r="18"
+                        fill="#4285F4" fill-opacity="0.2"
+                        stroke="#4285F4" stroke-width="1.5"/>
+                <circle cx="20" cy="20" r="8"
+                        fill="#4285F4" stroke="white"
+                        stroke-width="2.5"/>
+                <polygon points="20,4 26,18 20,14 14,18"
+                         fill="white"/>
+            </svg>`;
+            return new google.maps.marker.AdvancedMarkerElement({
+                position: { lat: parseFloat(lat), lng: parseFloat(lon) },
+                map: map,
+                title: 'Current Position',
+                content: div
+            });
+        }
+
+        function updateMarkerHeading(fromPoint, toPoint) {
+            if (!movingMarker || !fromPoint || !toPoint) return;
+            const heading = google.maps.geometry.spherical.computeHeading(
+                new google.maps.LatLng(
+                    parseFloat(fromPoint.lat), parseFloat(fromPoint.lon)
+                ),
+                new google.maps.LatLng(
+                    parseFloat(toPoint.lat), parseFloat(toPoint.lon)
+                )
+            );
+            const markerDiv = document.getElementById('nav-marker');
+            if (markerDiv) {
+                markerDiv.style.transform = `rotate(${heading}deg)`;
+            }
+        }
+
+        function smoothMoveMarker(marker, sLat, sLng, eLat, eLng, dur) {
+            if (_activeAnimation) {
+                cancelAnimationFrame(_activeAnimation);
+                _activeAnimation = null;
+            }
+            const start = performance.now();
+            function step(now) {
+                const t = Math.min((now - start) / dur, 1);
+                marker.position = {
+                    lat: sLat + (eLat - sLat) * t,
+                    lng: sLng + (eLng - sLng) * t
+                };
+                if (t < 1) {
+                    _activeAnimation = requestAnimationFrame(step);
+                } else {
+                    _activeAnimation = null;
+                }
+            }
+            _activeAnimation = requestAnimationFrame(step);
+        }
+
+        // ═══════════════════════════════════════════
+        // MAP INIT
+        // ═══════════════════════════════════════════
+
+        function initGoogleMap() {
+            map = new google.maps.Map(
+                document.getElementById('map'), {
+                center: { lat: 16.7050, lng: 74.2433 },
+                zoom: 15,
+                mapTypeId: 'roadmap',
+                mapId: 'GPS_ROUTE_TRACKER_MAP',
+                zoomControl: true,
+                mapTypeControl: false,
+                scaleControl: true,
+                streetViewControl: false,
+                rotateControl: false,
+                fullscreenControl: false
+            });
+        }
+
+        window.initMap = initGoogleMap;
+
+        // ═══════════════════════════════════════════
+        // GPS CALLBACK
+        // ═══════════════════════════════════════════
+
+        async function onGPSSuccess(position) {
+            if (!isTracking) return;
+
+            const rawLat = parseFloat(position.coords.latitude);
+            const rawLon = parseFloat(position.coords.longitude);
+            if (isNaN(rawLat) || isNaN(rawLon)) return;
+
+            const currentPoint = { lat: rawLat, lon: rawLon };
+
+            if (!calculateConfidence(currentPoint, lastPoint)) return;
+
+            if (lastPoint) {
+                const dist = haversineJS(
+                    lastPoint.lat, lastPoint.lon, rawLat, rawLon
+                );
+                if (dist < 2) return;
+            }
+
+            // Place start marker
+            if (!startMarker && !lastPoint) {
+                startMarker = placeMarker(
+                    rawLat, rawLon, '#34A853', 'Start', 1.2
+                );
+            }
+
+            // Update marker
+            if (!movingMarker) {
+                movingMarker = createNavigationMarker(rawLat, rawLon);
+            } else if (lastPoint) {
+                const prevPos = movingMarker.position;
+                const prevLat = prevPos ? parseFloat(prevPos.lat) : rawLat;
+                const prevLon = prevPos ? parseFloat(prevPos.lng) : rawLon;
+                updateMarkerHeading(
+                    { lat: prevLat, lon: prevLon },
+                    { lat: rawLat, lon: rawLon }
+                );
+                smoothMoveMarker(
+                    movingMarker, prevLat, prevLon, rawLat, rawLon, 600
+                );
+            }
+
+            // Distance
+            if (lastPoint) {
+                const seg = haversineJS(
+                    lastPoint.lat, lastPoint.lon, rawLat, rawLon
+                );
+                if (!isNaN(seg) && isFinite(seg) && seg < 200) {
+                    totalDistanceMeters += seg;
+                    updateDistanceDisplay();
+                }
+            }
+
+            lastPoint = currentPoint;
+            updateSpeed(currentPoint);
+
+            routePoints.push({ lat: rawLat, lon: rawLon });
+            if (snappedPolyline) {
+                snappedPolyline.setPath(
+                    routePoints.map(p => ({
+                        lat: parseFloat(p.lat),
+                        lng: parseFloat(p.lon)
+                    }))
+                );
+            }
+            map.panTo({ lat: rawLat, lon: rawLon });
+
+            // Snap batch
+            snapBuffer.push(currentPoint);
+            if (snapBuffer.length >= 3) {
+                const batch = [...snapBuffer];
+                snapBuffer = [];
+                
+                ; (async () => {
+                    try {
+                        const res = await fetch('/snap_chunk/', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ points: batch })
+                        });
+                        if (!handleResponseAuth(res)) return;
+                        if (!res.ok) return;
+                        const data = await res.json();
+                        const snapped = data.snapped || [];
+                        if (snapped.length > 0) {
+                            const snappedPts = snapped.map(p => ({
+                                lat: parseFloat(p.lat ?? p[0]),
+                                lon: parseFloat(p.lon ?? p.lng ?? p[1])
+                            })).filter(p => !isNaN(p.lat) && !isNaN(p.lon));
+                            if (snappedPts.length > 0) {
+                                lastSnappedPos = snappedPts[snappedPts.length - 1];
+                                
+                                // Update routePoints with snapped data
+                                // Note: This replaces the last 3 points with the snapped result
+                                const spliceStart = Math.max(0, routePoints.length - batch.length);
+                                routePoints.splice(spliceStart, batch.length, ...snappedPts);
+                                if (snappedPolyline) {
+                                    snappedPolyline.setPath(
+                                        routePoints.map(p => ({
+                                            lat: parseFloat(p.lat),
+                                            lng: parseFloat(p.lon)
+                                        }))
+                                    );
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Snap chunk failed:', e.message);
+                    }
+                })();
+            }
+        }
+
+        function onGPSError(error) {
+            console.error('GPS Error:', error.code, error.message);
+        }
+
+        // ═══════════════════════════════════════════
+        // START / STOP
+        // ═══════════════════════════════════════════
+
+        function startTracking() {
+            routePoints = [];
+            anchorPoints = [];
+            roadPathBuffer = [];
+            lastAnchor = null;
+            resetStats();
+            resetSpeedDisplay();
+
+            if (snappedPolyline) { snappedPolyline.setMap(null); snappedPolyline = null; }
+            if (routePolyline) { routePolyline.setMap(null); routePolyline = null; }
+            startMarker = removeMarker(startMarker);
+            endMarker = removeMarker(endMarker);
+            movingMarker = removeMarker(movingMarker);
+
+            snappedPolyline = new google.maps.Polyline({
+                path: [],
+                geodesic: true,
+                strokeColor: '#1a73e8',
+                strokeOpacity: 1.0,
+                strokeWeight: 6,
+                map: map,
+                zIndex: 10
+            });
+
+            setTrackingStatus(true);
+            startDurationTimer();
+            isTracking = true;
+
+            if (!navigator.geolocation) {
+                alert('Geolocation not supported.');
+                return;
+            }
+
+            watchId = navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+
+                    marker.setPosition({ lat, lng });
+                    marker.setMap(map);
+                    map.setCenter({ lat, lng });
+                    map.setZoom(17);
+                },
+                (err) => {
+                    console.error('GPS init failed:', err.message);
+
+                    // 🔥 FALLBACK — show marker anyway
+                    const fallback = { lat: 18.5204, lng: 73.8567 }; // Pune
+
+                    marker.setPosition(fallback);
+                    marker.setMap(map);
+                    map.setCenter(fallback);
+
+                    showToast('⚠️ GPS failed — showing default location');
+                },
+                { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+            );
+        }
+
+        async function stopTracking() {
+            if (!isTracking) return;
+            isTracking = false;
+            setTrackingStatus(false);
+            stopDurationTimer();
+
+            if (watchId !== null) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+
+            movingMarker = removeMarker(movingMarker);
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            if (routePoints.length === 0) {
+                alert('No route points recorded.');
+                return;
+            }
+
+            if (lastPoint) {
+                endMarker = placeMarker(
+                    lastPoint.lat, lastPoint.lon,
+                    '#EA4335', 'End Point', 1.2
+                );
+            }
+
+            try {
+                const res = await fetch('/save_route/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ points: routePoints })
+                });
+                if (!handleResponseAuth(res)) return;
+                if (res.ok) {
+                    console.log('Route saved successfully');
+                } else {
+                    const err = await res.json();
+                    console.error('Save failed:', err.message || err.error);
+                }
+            } catch (e) {
+                console.error('Save error:', e);
+            }
+        }
+    </script>
+
+    <!-- Google Maps -->
+    <script
+        src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&loading=async&callback=initMap&libraries=geometry,marker"
+        async defer>
+        </script>
+
+    <script>
+        console.log("EMBED PAGE");
+    </script>
+
+</body>
+
+</html>

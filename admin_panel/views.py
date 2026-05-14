@@ -8,7 +8,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.conf import settings
 import logging
-from tracker.models import RouteLog
+from tracker.models import RouteLog, MockGPSViolation
 
 logger = logging.getLogger(__name__)
 
@@ -161,11 +161,13 @@ def compute_avg_speed_kmh(points, total_points):
     """
     Estimate average speed in km/h from route points.
     Uses total distance and estimated duration (total_points * 5 seconds).
+    Falls back to len(points) if total_points is 0 (offline sync issue).
     """
-    if not points or total_points < 2:
+    actual_count = total_points if total_points >= 2 else len(points)
+    if not points or actual_count < 2:
         return 0.0
     distance_m = compute_distance(points)
-    duration_s = total_points * 5  # each point ≈ 5 seconds apart
+    duration_s = actual_count * 5  # each point ≈ 5 seconds apart
     if duration_s <= 0:
         return 0.0
     speed_kmh = (distance_m / 1000) / (duration_s / 3600)
@@ -175,17 +177,17 @@ def compute_avg_speed_kmh(points, total_points):
 def classify_profile(points, total_points):
     """
     Classify the route profile based on average speed:
-      <= 10 km/h  → walking
-      <= 25 km/h  → cycling
-      <= 80 km/h  → motorcycle
-      > 80 km/h   → car
+      <= 6  km/h  → walking
+      <= 20 km/h  → cycling
+      <= 60 km/h  → motorcycle
+      > 60  km/h  → car
     """
     speed = compute_avg_speed_kmh(points, total_points)
-    if speed <= 10:
+    if speed <= 6:
         return 'walking'
-    elif speed <= 25:
+    elif speed <= 20:
         return 'cycling'
-    elif speed <= 80:
+    elif speed <= 60:
         return 'motorcycle'
     else:
         return 'car'
@@ -221,15 +223,59 @@ def format_distance(meters):
         return f'{meters} m'
     return f'{meters/1000:.2f} km'
 
-# ─── PLACEHOLDER: Stop Detection ─────────────────────────
+# ─── Stop Detection Algorithm ──────────────────────────────
 def detect_stops(points):
     """
-    PLACEHOLDER — Stop detection will be implemented later.
-    Will analyze speed between consecutive points and
-    identify locations where the user stopped for > 30s.
-    Returns empty list for now.
+    Analyzes route points to find locations where the user
+    remained stationary (within a 15-meter radius) for
+    more than 30 seconds (approx 6 consecutive points).
     """
-    return []
+    stops = []
+    if not points or len(points) < 6:
+        return stops
+
+    current_cluster = [points[0]]
+    cluster_start_idx = 0
+
+    for i in range(1, len(points)):
+        # Calculate distance from the start of the current cluster
+        anchor_p = points[cluster_start_idx]
+        curr_p = points[i]
+        
+        dist = haversine(
+            anchor_p['lat'], anchor_p['lon'],
+            curr_p['lat'], curr_p['lon']
+        )
+
+        if dist <= 15.0:
+            # Still within 15 meters, add to cluster
+            current_cluster.append(curr_p)
+        else:
+            # Moved outside the radius. Was it a stop?
+            # 6 points * ~5s per point = ~30 seconds duration
+            if len(current_cluster) >= 6:
+                duration = len(current_cluster) * 5
+                stops.append({
+                    'lat': anchor_p['lat'],
+                    'lon': anchor_p['lon'],
+                    'duration_sec': duration,
+                    'point_count': len(current_cluster)
+                })
+            
+            # Start a new cluster
+            current_cluster = [curr_p]
+            cluster_start_idx = i
+
+    # Check the final cluster
+    if len(current_cluster) >= 6:
+        stops.append({
+            'lat': points[cluster_start_idx]['lat'],
+            'lon': points[cluster_start_idx]['lon'],
+            'duration_sec': len(current_cluster) * 5,
+            'point_count': len(current_cluster)
+        })
+
+    return stops
 
 # ─── View 1: Admin Dashboard ──────────────────────────────
 @superadmin_required
@@ -259,6 +305,11 @@ def admin_dashboard(request):
             compute_distance(normalize_points(r.route_points))
             for r in today_routes
         )
+        
+        today_stops_count = sum(
+            len(detect_stops(normalize_points(r.route_points)))
+            for r in today_routes
+        )
 
         last_route = all_routes.first()
 
@@ -272,7 +323,18 @@ def admin_dashboard(request):
                                if last_route else None,
             'last_route_id':   last_route.id
                                if last_route else None,
+            'mock_violations': MockGPSViolation.objects.filter(user=user).count(),
         })
+
+    # Calculate global stops today
+    total_stops_today = 0
+    today_all_routes = RouteLog.objects.filter(
+        user__is_superuser=False,
+        created_at__date=today
+    )
+    for r in today_all_routes:
+        pts = normalize_points(r.route_points)
+        total_stops_today += len(detect_stops(pts))
 
     context = {
         'user_data':      user_data,
@@ -280,10 +342,8 @@ def admin_dashboard(request):
         'total_routes':   RouteLog.objects.filter(
                               user__is_superuser=False
                           ).count(),
-        'today_routes':   RouteLog.objects.filter(
-                              user__is_superuser=False,
-                              created_at__date=today
-                          ).count(),
+        'today_routes':   today_all_routes.count(),
+        'today_stops':    total_stops_today,
         'GOOGLE_MAPS_API_KEY': settings.GOOGLE_MAPS_API_KEY,
     }
     return render(
@@ -358,7 +418,8 @@ def user_detail(request, user_id):
             'end_lon':        end_lon,
             'points':         points,
             'has_valid_data': valid_count >= 2,
-            'stop_count':     0,
+            'stop_count':     len(detect_stops(points)),
+            'stops':          detect_stops(points),
             'sampling_quality': (
                 'Excellent' if pts_per_km > 40 else
                 'Good'      if pts_per_km > 20 else
@@ -372,6 +433,20 @@ def user_detail(request, user_id):
         r['distance_m'] for r in route_list
         if r['date'] == today.strftime('%d %b %Y')
     )
+
+    # Mock GPS violations for this user
+    violations = MockGPSViolation.objects.filter(user=user)[:20]
+    violation_list = []
+    for v in violations:
+        local_time = timezone.localtime(v.detected_at)
+        violation_list.append({
+            'id':          v.id,
+            'date':        local_time.strftime('%d %b %Y'),
+            'time':        local_time.strftime('%I:%M %p'),
+            'lat':         v.latitude,
+            'lon':         v.longitude,
+            'device_info': v.device_info,
+        })
 
     import json as json_module
     context = {
@@ -388,6 +463,8 @@ def user_detail(request, user_id):
                                sum(r['distance_m']
                                    for r in route_list)
                            ),
+        'mock_violations':      MockGPSViolation.objects.filter(user=user).count(),
+        'mock_violation_list':  violation_list,
         'GOOGLE_MAPS_API_KEY': settings.GOOGLE_MAPS_API_KEY,
     }
     return render(
@@ -424,7 +501,8 @@ def api_user_routes(request, user_id):
                           ),
             'start':      points[0],
             'end':        points[-1],
-            'stop_count': 0,  # Placeholder
+            'stop_count': len(detect_stops(points)),
+            'stops':      detect_stops(points),
         })
 
     return JsonResponse({'routes': route_list})
@@ -722,3 +800,35 @@ def api_user_graph_data(request, user_id):
             ).days + 1,
         }
     })
+
+
+# ─── API: Mock GPS Violations ──────────────────────────────
+@superadmin_required
+def api_mock_violations(request, user_id):
+    """
+    Returns all mock GPS violations for a specific user.
+    Manager can see exactly when and where the employee
+    tried to use fake GPS.
+    """
+    user = get_object_or_404(User, id=user_id, is_superuser=False)
+    violations = MockGPSViolation.objects.filter(user=user)[:50]
+
+    data = []
+    for v in violations:
+        local_time = timezone.localtime(v.detected_at)
+        data.append({
+            'id':          v.id,
+            'date':        local_time.strftime('%d %b %Y'),
+            'time':        local_time.strftime('%I:%M %p'),
+            'datetime':    local_time.strftime('%d %b %Y, %I:%M %p'),
+            'lat':         v.latitude,
+            'lon':         v.longitude,
+            'device_info': v.device_info,
+        })
+
+    return JsonResponse({
+        'user':       user.username,
+        'total':      MockGPSViolation.objects.filter(user=user).count(),
+        'violations': data
+    })
+

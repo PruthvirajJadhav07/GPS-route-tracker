@@ -3,3 +3,5 @@ psycopg2-binary
 requests
 python-decouple
 django-ratelimit
+djangorestframework
+django-cors-headers

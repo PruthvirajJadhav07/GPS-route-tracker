@@ -20,3 +20,73 @@ class RouteLog(models.Model):
 
     def __str__(self):
         return f'Route by {self.user.username} on {self.created_at}'
+
+
+class Device(models.Model):
+    """
+    Represents a registered tracking device (Android phone).
+    Each device gets a unique device_id used to tag its location pings.
+    """
+    device_id   = models.CharField(max_length=255, unique=True)
+    name        = models.CharField(max_length=255, blank=True, default='')
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.name or self.device_id
+
+
+class LocationLog(models.Model):
+    """
+    A single GPS coordinate ping sent from a tracked device.
+    Stores latitude, longitude, speed, and the timestamp from the device.
+    """
+    device      = models.ForeignKey(
+                      Device,
+                      on_delete=models.CASCADE,
+                      related_name='locations'
+                  )
+    latitude    = models.FloatField()
+    longitude   = models.FloatField()
+    speed       = models.FloatField(null=True, blank=True)
+    timestamp   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f'{self.device} @ {self.latitude},{self.longitude}'
+
+class LiveHeartbeat(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='heartbeats')
+    lat = models.FloatField()
+    lon = models.FloatField()
+    speed = models.FloatField(null=True, blank=True)
+    status = models.CharField(max_length=50, default='active')
+    battery_level = models.IntegerField(null=True, blank=True)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Heartbeat: {self.user.username} - {self.status} at {self.last_updated}'
+
+
+class MockGPSViolation(models.Model):
+    """
+    Logs every instance when an employee is caught using a
+    fake/mock GPS location provider (e.g., Fake GPS app).
+    Visible to superadmin/manager in the admin panel.
+    """
+    user       = models.ForeignKey(
+                     User,
+                     on_delete=models.CASCADE,
+                     related_name='mock_violations'
+                 )
+    latitude   = models.FloatField(null=True, blank=True)
+    longitude  = models.FloatField(null=True, blank=True)
+    detected_at = models.DateTimeField(auto_now_add=True)
+    device_info = models.CharField(max_length=500, blank=True, default='')
+
+    class Meta:
+        ordering = ['-detected_at']
+
+    def __str__(self):
+        return f'⛔ MOCK GPS: {self.user.username} at {self.detected_at}'

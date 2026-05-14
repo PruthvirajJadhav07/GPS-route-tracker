@@ -4,13 +4,19 @@ import logging
 import threading
 import os
 from django.shortcuts import render
+from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
 from django_ratelimit.decorators import ratelimit
-from .models import RouteLog
+from django.utils import timezone
+from .models import RouteLog, Device, LocationLog, LiveHeartbeat, MockGPSViolation
 import requests
+
+from rest_framework import generics, status as drf_status
+from rest_framework.response import Response
+from .serializers import DeviceSerializer, LocationLogSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +78,7 @@ def validate_route_points(points):
             return f'Point {i} has invalid longitude: {lon}'
     return None
 
-def google_snap_to_road(points):
+def google_snap_to_road(points, request=None):
     """
     Snaps GPS points to nearest road using Google Roads API.
     Accepts and returns list of {'lat': float, 'lon': float}.
@@ -92,9 +98,15 @@ def google_snap_to_road(points):
         'interpolate': 'true',
         'key': api_key
     }
+    
+    headers = {}
+    if request and request.META.get('HTTP_REFERER'):
+        headers['Referer'] = request.META.get('HTTP_REFERER')
+    else:
+        headers['Referer'] = 'http://127.0.0.1:8000/'
 
     try:
-        response = requests.get(url, params=params, timeout=5)
+        response = requests.get(url, params=params, headers=headers, timeout=5)
 
         if response.status_code == 200:
             data = response.json()
@@ -103,7 +115,8 @@ def google_snap_to_road(points):
                 return [
                     {
                         'lat': float(p['location']['latitude']),
-                        'lon': float(p['location']['longitude'])
+                        'lon': float(p['location']['longitude']),
+                        'originalIndex': p.get('originalIndex')
                     }
                     for p in snapped
                 ]
@@ -148,6 +161,34 @@ def compute_route_distance(points):
             continue
     return round(total)
 
+def filter_outlier_points(points):
+    """
+    Backend defense: removes GPS outlier points from a batch.
+    If a point jumps > 50m from its predecessor, it's drift — skip it.
+    This prevents polluted data from reaching Google Roads API.
+    """
+    if len(points) <= 2:
+        return points
+
+    filtered = [points[0]]
+    for i in range(1, len(points)):
+        try:
+            dist = haversine(
+                float(points[i-1]['lat']), float(points[i-1]['lon']),
+                float(points[i]['lat']), float(points[i]['lon'])
+            )
+            if dist <= 50:
+                filtered.append(points[i])
+            else:
+                logger.warning(
+                    f'Outlier rejected: {dist:.0f}m jump at point {i} '
+                    f'({points[i]["lat"]}, {points[i]["lon"]})'
+                )
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    return filtered if filtered else points
+
 @ajax_login_required
 @ratelimit(key='user_or_ip', rate='60/m', block=False)
 def snap_point(request):
@@ -161,11 +202,12 @@ def snap_point(request):
         error = validate_chunk_points(points)
         if error:
             return JsonResponse({'error': error}, status=400)
-        snapped = google_snap_to_road(points)
+        snapped = google_snap_to_road(points, request)
         return JsonResponse({'snapped': snapped})
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
 
+@csrf_exempt
 @ajax_login_required
 @ratelimit(key='user_or_ip', rate='30/m', block=False)
 def snap_chunk(request):
@@ -179,11 +221,44 @@ def snap_chunk(request):
         error = validate_chunk_points(points)
         if error:
             return JsonResponse({'error': error}, status=400)
+        points = filter_outlier_points(points)
+        snapped = google_snap_to_road(points, request)
+        return JsonResponse({'snapped': snapped})
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+@csrf_exempt
+def snap_chunk_api(request):
+    """
+    Same as snap_chunk but no login required.
+    Used by the Android APK tracker.
+    """
+    if request.method == 'POST':
+        data   = json.loads(request.body)
+        points = data.get('points', [])
+        error  = validate_chunk_points(points)
+        if error:
+            return JsonResponse({'error': error}, status=400)
+        points  = filter_outlier_points(points)
         snapped = google_snap_to_road(points)
         return JsonResponse({'snapped': snapped})
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
+@csrf_exempt
+@ajax_login_required
+def delete_route(request, route_id):
+    if request.method != 'DELETE':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    try:
+        # Only delete routes belonging to logged in user
+        route = RouteLog.objects.get(id=route_id, user=request.user)
+        route.delete()
+        return JsonResponse({'success': True, 'deleted_id': route_id})
+    except RouteLog.DoesNotExist:
+        return JsonResponse({'error': 'Route not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
+@csrf_exempt
 @ajax_login_required
 @ratelimit(key='user_or_ip', rate='10/m', block=False)
 def save_route(request):
@@ -289,7 +364,7 @@ def route_history(request):
             continue
         route_list.append({
             'id':               route.id,
-            'created_at':       route.created_at.strftime('%d %b %Y, %I:%M %p'),
+            'created_at':       timezone.localtime(route.created_at).strftime('%d %b %Y, %I:%M %p'),
             'start_lat':        points[0]['lat'],
             'start_lon':        points[0]['lon'],
             'end_lat':          points[-1]['lat'],
@@ -353,6 +428,7 @@ def decode_polyline(encoded):
     return points
 
 
+@csrf_exempt
 @ajax_login_required
 def get_road_path(request):
     """
@@ -366,9 +442,15 @@ def get_road_path(request):
             {'error': 'Method not allowed'}, status=405
         )
 
-    data        = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        return JsonResponse(
+            {'error': 'Invalid or empty request body'}, status=400
+        )
     origin      = data.get('origin')
     destination = data.get('destination')
+    waypoints_data = data.get('waypoints', [])
 
     if not origin or not destination:
         return JsonResponse(
@@ -388,16 +470,31 @@ def get_road_path(request):
 
     api_key = settings.GOOGLE_MAPS_API_KEY
 
-    url = 'https://maps.googleapis.com/maps/api/directions/json'
     params = {
         'origin':      f'{origin_lat},{origin_lon}',
         'destination': f'{dest_lat},{dest_lon}',
         'mode':        'driving',
         'key':         api_key
     }
+    
+    if waypoints_data and isinstance(waypoints_data, list):
+        wp_list = []
+        for wp in waypoints_data:
+            try:
+                wp_list.append(f"{float(wp['lat'])},{float(wp['lon'])}")
+            except (KeyError, TypeError, ValueError):
+                continue
+        if wp_list:
+            params['waypoints'] = '|'.join(wp_list)
+            
+    headers = {}
+    if request.META.get('HTTP_REFERER'):
+        headers['Referer'] = request.META.get('HTTP_REFERER')
+    else:
+        headers['Referer'] = 'http://127.0.0.1:8000/'
 
     try:
-        response = requests.get(url, params=params, timeout=5)
+        response = requests.get(url, params=params, headers=headers, timeout=5)
 
         if response.status_code == 200:
             data = response.json()
@@ -445,3 +542,111 @@ def home(request):
     return render(request, 'home.html', {
         'GOOGLE_MAPS_API_KEY': settings.GOOGLE_MAPS_API_KEY
     })
+
+
+def tracker_embed(request):
+    """Clean embed version — no header/footer.
+    This URL is what clients put in their iframe src."""
+    return render(request, 'tracker_embed.html', {
+        'GOOGLE_MAPS_API_KEY': settings.GOOGLE_MAPS_API_KEY
+    })
+
+
+# ────────────────────────────────────────────────────────────
+#  REST API Views for Android GPS Tracker App
+# ────────────────────────────────────────────────────────────
+
+class DeviceListCreate(generics.ListCreateAPIView):
+    """
+    GET  /api/devices/       → list all registered devices
+    POST /api/devices/       → register a new device
+         body: {"device_id": "phone-abc", "name": "My Phone"}
+    """
+    queryset         = Device.objects.all()
+    serializer_class = DeviceSerializer
+
+
+class LocationLogCreate(generics.CreateAPIView):
+    """
+    POST /api/locations/     → log a GPS coordinate from a device
+         body: {"device": 1, "latitude": 18.52, "longitude": 73.85, "speed": 2.5}
+    """
+    queryset         = LocationLog.objects.all()
+    serializer_class = LocationLogSerializer
+
+
+class DeviceLocationList(generics.ListAPIView):
+    """
+    GET /api/devices/<id>/locations/  → get all location pings for a device
+    """
+    serializer_class = LocationLogSerializer
+
+    def get_queryset(self):
+        device_id = self.kwargs['device_id']
+        return LocationLog.objects.filter(device_id=device_id)
+
+@login_required
+@ratelimit(key='user', rate='20/m', method='POST', block=True)
+def live_heartbeat(request):
+    """
+    POST /live_heartbeat/ -> Saves the current live location of the employee
+    Expects JSON: { "lat": float, "lon": float, "speed": float, "status": "active" | "idle" }
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        lat = data.get('lat')
+        lon = data.get('lon')
+        
+        if lat is None or lon is None:
+            return JsonResponse({'error': 'Missing lat/lon'}, status=400)
+
+        # Update or create the heartbeat row for this user
+        hb, created = LiveHeartbeat.objects.update_or_create(
+            user=request.user,
+            defaults={
+                'lat': float(lat),
+                'lon': float(lon),
+                'speed': data.get('speed', 0.0),
+                'status': data.get('status', 'active'),
+                'battery_level': data.get('battery')
+            }
+        )
+        return JsonResponse({'success': True, 'msg': 'Heartbeat captured'})
+    except Exception as e:
+        logger.error(f'Live Heartbeat error: {e}')
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@csrf_exempt
+@ajax_login_required
+@ratelimit(key='user', rate='10/m', method='POST')
+def report_mock_gps(request):
+    """
+    Called by the frontend when a mock/fake GPS location is detected.
+    Logs the violation with the employee's identity so the manager
+    can see who is cheating and take action.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError):
+        data = {}
+
+    MockGPSViolation.objects.create(
+        user=request.user,
+        latitude=data.get('lat'),
+        longitude=data.get('lon'),
+        device_info=data.get('device_info', '')[:500]
+    )
+
+    logger.warning(
+        f'⛔ MOCK GPS VIOLATION: User={request.user.username} '
+        f'lat={data.get("lat")} lon={data.get("lon")}'
+    )
+
+    return JsonResponse({'reported': True})

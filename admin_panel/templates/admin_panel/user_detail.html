@@ -599,6 +599,30 @@
       color: var(--primary);
     }
 
+    .btn-flyover {
+      width: 100%;
+      margin-top: 12px;
+      padding: 8px 12px;
+      background: linear-gradient(135deg, rgba(66, 133, 244, 0.2) 0%, rgba(66, 133, 244, 0.05) 100%);
+      border: 1px solid var(--primary);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      font-family: var(--font);
+    }
+
+    .btn-flyover:hover {
+      background: rgba(66, 133, 244, 0.3);
+      box-shadow: 0 0 10px rgba(66, 133, 244, 0.4);
+    }
+
     /* ── Responsive ── */
     @media (max-width: 900px) {
       .detail-layout {
@@ -724,7 +748,7 @@
           <label class="filter-label">Profile</label>
           <div class="filter-chips">
             <button class="chip active" data-profile="all" onclick="setGraphProfile('all',this)">All</button>
-            <button class="chip" data-profile="walking" onclick="setGraphProfile('walking',this)" style="--chip-color:#34A853">🚶 Walk</button>
+            <button class="chip" data-profile="walking" onclick="setGraphProfile('walking',this)" style="--chip-color:#00E5FF">🚶 Walk</button>
             <button class="chip" data-profile="cycling" onclick="setGraphProfile('cycling',this)" style="--chip-color:#FBBC05">🚴 Cycle</button>
             <button class="chip" data-profile="motorcycle" onclick="setGraphProfile('motorcycle',this)" style="--chip-color:#FF6D00">🏍️ Moto</button>
             <button class="chip" data-profile="car" onclick="setGraphProfile('car',this)" style="--chip-color:#4285F4">🚗 Car</button>
@@ -788,6 +812,31 @@
         </div>
       </div>
 
+      <!-- ── SECURITY VIOLATIONS (FAKE GPS) ──────── -->
+      {% if mock_violations > 0 %}
+      <div style="background:var(--danger-dim); border:1px solid var(--danger); border-radius:var(--radius); padding:16px; margin-top:10px;">
+        <div style="color:var(--danger); font-size:14px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          FAKE GPS DETECTED ({{ mock_violations }} times)
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto; padding-right:4px;">
+          {% for v in mock_violation_list %}
+          <div style="background:var(--bg-card); padding:10px; border-radius:6px; font-size:12px; border:1px solid rgba(234, 67, 53, 0.3);">
+            <div style="font-weight:700; color:var(--text); margin-bottom:4px;">{{ v.date }} at {{ v.time }}</div>
+            <div style="color:var(--text-muted); font-family:var(--mono); font-size:11px;">
+              Lat: {{ v.lat }}<br>
+              Lon: {{ v.lon }}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       <!-- Routes List -->
       <div class="routes-section-title">
         Tracked Routes
@@ -828,10 +877,11 @@
         </div>
         <div class="map-info-row">
           <span class="map-info-label">Stops</span>
-          <span class="map-info-value" style="color:var(--text-dim)">
-            Coming Soon
-          </span>
+          <span class="map-info-value" id="ov-stops">—</span>
         </div>
+        <button id="btn-flyover" class="btn-flyover" onclick="toggleFlyover()" style="display:none;">
+          ▶ Play 3D Flyover
+        </button>
       </div>
     </div>
   </div>
@@ -852,8 +902,28 @@
     let activeStart = null;
     let activeEnd = null;
     let activeCard = null;
+    let activeStopMarkers = [];
 
     // ── Initialize admin map ──────────────────────────────
+    const ADMIN_DARK_STYLE = [
+      { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
+      { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
+      { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
+      { featureType: 'administrative.country', elementType: 'geometry.stroke', stylers: [{ color: '#4b6878' }] },
+      { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#283d6a' }] },
+      { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#6f9ba5' }] },
+      { featureType: 'poi.park', elementType: 'geometry.fill', stylers: [{ color: '#023e58' }] },
+      { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#304a7d' }] },
+      { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#98a5be' }] },
+      { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2c6675' }] },
+      { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#255763' }] },
+      { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#b0d5ce' }] },
+      { featureType: 'transit', elementType: 'labels.text.fill', stylers: [{ color: '#98a5be' }] },
+      { featureType: 'transit.station', elementType: 'geometry', stylers: [{ color: '#2a3f67' }] },
+      { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#0e1626' }] },
+      { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#4e6d70' }] },
+    ];
+
     function initAdminMap() {
       function createMap() {
         const mapDiv = document.getElementById('admin-map');
@@ -866,13 +936,23 @@
           zoom: 13,
           mapTypeId: 'roadmap',
           mapId: 'YOUR_ACTUAL_MAP_ID_HERE',
+          styles: ADMIN_DARK_STYLE,
           zoomControl: true,
-          mapTypeControl: false,
+          mapTypeControl: true,
+          mapTypeControlOptions: {
+            style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+            position: google.maps.ControlPosition.TOP_RIGHT,
+            mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain']
+          },
           scaleControl: true,
           streetViewControl: false,
           rotateControl: true,
-          fullscreenControl: false,
+          fullscreenControl: true,
         });
+
+        // ── Traffic Layer ───────────────────────────
+        const trafficLayer = new google.maps.TrafficLayer();
+        trafficLayer.setMap(adminMap);
       }
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', createMap);
@@ -963,7 +1043,7 @@
     }
 
     const PROFILE_CONFIG = {
-      walking: { color: '#34A853', label: 'Walking', icon: '🚶', weight: 4 },
+      walking: { color: '#00E5FF', label: 'Walking', icon: '🚶', weight: 4 },
       cycling: { color: '#FBBC05', label: 'Cycling', icon: '🚴', weight: 5 },
       motorcycle: { color: '#FF6D00', label: 'Motorcycle', icon: '🏍️', weight: 5 },
       car: { color: '#4285F4', label: 'Car', icon: '🚗', weight: 6 },
@@ -1061,7 +1141,7 @@
                       gap:6px; align-items:center;
                       flex-wrap:wrap;">
             <span class="stop-badge">
-              Stops: Coming Soon
+              Stops: ${route.stop_count}
             </span>
             <span style="font-size:10px; padding:2px 7px;
                          border-radius:10px; font-weight:600;
@@ -1140,6 +1220,7 @@
       // Reset map state on re-render
       activeStart = removeAdminMarker(activeStart);
       activeEnd = removeAdminMarker(activeEnd);
+      if (typeof clearStopMarkers === 'function') clearStopMarkers();
       if (activePolyline) {
         activePolyline.setMap(null);
         activePolyline = null;
@@ -1164,6 +1245,7 @@
       // before drawing new route
       activeStart = removeAdminMarker(activeStart);
       activeEnd = removeAdminMarker(activeEnd);
+      clearStopMarkers();
 
       if (activePolyline) {
         activePolyline.setMap(null);
@@ -1244,7 +1326,7 @@
       // Get profile color for this route
       const profileCfg = getProfileConfig(routeData.profile);
 
-      // Draw profile-colored polyline
+      // Draw profile-colored polyline with directional arrows
       activePolyline = new google.maps.Polyline({
         path: path,
         geodesic: true,
@@ -1252,7 +1334,18 @@
         strokeOpacity: 0.9,
         strokeWeight: profileCfg.weight,
         map: adminMap,
-        zIndex: 10
+        zIndex: 10,
+        icons: [{
+          icon: {
+            path: google.maps.SymbolPath.FORWARD_OPEN_ARROW,
+            scale: 2.5,
+            strokeColor: '#ffffff',
+            strokeWeight: 2,
+            strokeOpacity: 0.8,
+          },
+          offset: '0',
+          repeat: '80px'
+        }]
       });
 
       // Start marker — RED with S glyph
@@ -1285,8 +1378,167 @@
         document.getElementById('ov-duration').textContent = routeData.duration || '—';
         document.getElementById('ov-date').textContent = routeData.created_at || '—';
         document.getElementById('ov-points').textContent = `${routeData.valid_points} / ${routeData.raw_point_count}`;
+        document.getElementById('ov-stops').textContent = routeData.stop_count !== undefined ? routeData.stop_count : '—';
+        document.getElementById('btn-flyover').style.display = 'flex';
         overlay.classList.add('visible');
       }
+
+      // ── Render Stop Markers on Map ──────────────────────
+      if (routeData.stops && routeData.stops.length > 0) {
+        renderStopMarkers(routeData.stops);
+      }
+    }
+
+    // ── Stop Marker Helpers ────────────────────────────────
+    function clearStopMarkers() {
+      activeStopMarkers.forEach(m => {
+        if (m.infoWindow) m.infoWindow.close();
+        if (m.marker) {
+          try { m.marker.map = null; } catch(e) {
+            try { m.marker.setMap(null); } catch(e2) {}
+          }
+        }
+      });
+      activeStopMarkers = [];
+    }
+
+    function formatStopDuration(seconds) {
+      if (seconds < 60) return `${seconds}s`;
+      const mins = Math.round(seconds / 60);
+      if (mins < 60) return `${mins} min`;
+      const hrs = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      return `${hrs}h ${remMins}m`;
+    }
+
+    function renderStopMarkers(stops) {
+      clearStopMarkers();
+      const geocoder = new google.maps.Geocoder();
+
+      stops.forEach((stop, idx) => {
+        const lat = parseFloat(stop.lat);
+        const lon = parseFloat(stop.lon);
+        if (isNaN(lat) || isNaN(lon)) return;
+
+        const position = { lat, lng: lon };
+        const durationText = formatStopDuration(stop.duration_sec);
+
+        // Create a custom HTML label for the marker
+        const labelDiv = document.createElement('div');
+        labelDiv.style.cssText = `
+          background: linear-gradient(135deg, #FF6D00, #FF9100);
+          color: #fff;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 4px 8px;
+          border-radius: 12px;
+          border: 2px solid #fff;
+          box-shadow: 0 2px 8px rgba(255,109,0,0.5);
+          font-family: 'Fira Code', monospace;
+          white-space: nowrap;
+          cursor: pointer;
+        `;
+        labelDiv.textContent = `⏱ ${durationText}`;
+
+        let marker;
+        try {
+          // Try AdvancedMarkerElement
+          marker = new google.maps.marker.AdvancedMarkerElement({
+            position: position,
+            map: adminMap,
+            title: `Stop #${idx + 1}: ${durationText}`,
+            content: labelDiv,
+            zIndex: 15
+          });
+        } catch(e) {
+          // Fallback to classic Marker
+          marker = new google.maps.Marker({
+            position: position,
+            map: adminMap,
+            title: `Stop #${idx + 1}: ${durationText}`,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: 10,
+              fillColor: '#FF6D00',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: 2.5,
+            },
+            label: {
+              text: `${idx + 1}`,
+              color: '#ffffff',
+              fontSize: '10px',
+              fontWeight: '700',
+            },
+            zIndex: 15
+          });
+        }
+
+        // Create InfoWindow with loading state
+        const infoContent = document.createElement('div');
+        infoContent.style.cssText = `
+          font-family: 'Fira Sans', sans-serif;
+          color: #0d1117;
+          min-width: 180px;
+        `;
+        infoContent.innerHTML = `
+          <div style="font-size:14px; font-weight:700; margin-bottom:6px; color:#FF6D00;">
+            ⏱ Stop #${idx + 1}
+          </div>
+          <div style="font-size:13px; margin-bottom:4px;">
+            <strong>Duration:</strong> ${durationText}
+          </div>
+          <div style="font-size:12px; color:#555;" id="stop-area-${idx}">
+            📍 Loading area...
+          </div>
+        `;
+
+        const infoWindow = new google.maps.InfoWindow({
+          content: infoContent,
+        });
+
+        // Click handler to open InfoWindow
+        const openInfo = () => infoWindow.open(adminMap, marker.position ? undefined : marker);
+        try {
+          marker.addEventListener('click', openInfo);
+        } catch(e) {
+          google.maps.event.addListener(marker, 'click', openInfo);
+        }
+
+        // Reverse geocode to get area name
+        geocoder.geocode({ location: position }, (results, status) => {
+          const areaEl = infoContent.querySelector(`#stop-area-${idx}`);
+          if (status === 'OK' && results && results.length > 0) {
+            // Find the most relevant locality component
+            let areaName = '';
+            for (const result of results) {
+              const types = result.types || [];
+              if (types.includes('sublocality') || types.includes('sublocality_level_1')) {
+                areaName = result.formatted_address.split(',').slice(0, 2).join(', ');
+                break;
+              }
+              if (types.includes('locality')) {
+                areaName = result.formatted_address.split(',').slice(0, 2).join(', ');
+                break;
+              }
+              if (types.includes('route') || types.includes('street_address')) {
+                areaName = result.formatted_address.split(',').slice(0, 2).join(', ');
+                break;
+              }
+            }
+            if (!areaName && results[0]) {
+              areaName = results[0].formatted_address.split(',').slice(0, 2).join(', ');
+            }
+            if (areaEl) areaEl.innerHTML = `📍 ${areaName}`;
+            // Also update the label to include area
+            labelDiv.textContent = `⏱ ${durationText}`;
+          } else {
+            if (areaEl) areaEl.innerHTML = `📍 ${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+          }
+        });
+
+        activeStopMarkers.push({ marker, infoWindow });
+      });
     }
 
     function handleRouteView(index) {
@@ -1555,8 +1807,153 @@
       document.getElementById('filter-from').value = from.toISOString().split('T')[0];
       loadGraphData();
     });
+    // ── Smooth 3D Flyover Engine ──────────────────────────
+    let flyoverAnimationId = null;
+    let isFlying = false;
+    let flyoverPolyline = null;
+    let flyoverMarker = null;
+
+    function stopFlyover() {
+      isFlying = false;
+      if (flyoverAnimationId) cancelAnimationFrame(flyoverAnimationId);
+      const btn = document.getElementById('btn-flyover');
+      if (btn) btn.innerHTML = '▶ Play 3D Flyover';
+      
+      // Cleanup dynamically drawn line and marker
+      if (flyoverPolyline) {
+        flyoverPolyline.setMap(null);
+        flyoverPolyline = null;
+      }
+      if (flyoverMarker) {
+        flyoverMarker.setMap(null);
+        flyoverMarker = null;
+      }
+
+      // Reset tilt, zoom, and heading
+      if (adminMap) {
+        adminMap.setTilt(0);
+        adminMap.setHeading(0);
+        adminMap.setZoom(15);
+      }
+      
+      // Restore original polyline opacity
+      if (activePolyline) {
+        activePolyline.setOptions({ strokeOpacity: 0.9 });
+      }
+    }
+
+    function toggleFlyover() {
+      if (isFlying) {
+        stopFlyover();
+      } else {
+        startFlyover();
+      }
+    }
+
+    function startFlyover() {
+      if (!activePolyline) return;
+      const path = activePolyline.getPath().getArray();
+      if (!path || path.length < 2) return;
+
+      isFlying = true;
+      const btn = document.getElementById('btn-flyover');
+      if (btn) btn.innerHTML = '⏹ Stop Flyover';
+
+      // Fade out the original line
+      activePolyline.setOptions({ strokeOpacity: 0.25 });
+
+      // Create the dynamic drawing line (Neon Orange)
+      flyoverPolyline = new google.maps.Polyline({
+        path: [path[0]],
+        geodesic: true,
+        strokeColor: '#FF6D00',
+        strokeOpacity: 1.0,
+        strokeWeight: 6,
+        map: adminMap,
+        zIndex: 20
+      });
+
+      // Create the leading marker
+      flyoverMarker = new google.maps.Marker({
+        position: path[0],
+        map: adminMap,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 8,
+          fillColor: '#FF6D00',
+          fillOpacity: 1,
+          strokeColor: '#ffffff',
+          strokeWeight: 2,
+        },
+        zIndex: 21
+      });
+
+      // Switch to 3D View
+      adminMap.setTilt(65);
+      adminMap.setZoom(19); // Closer zoom for better immersion
+
+      let currentIndex = 0;
+      let fraction = 0; // 0.0 to 1.0 between currentPoint and nextPoint
+      const speed = 0.015; // Animation speed (percentage of segment per frame)
+
+      function step() {
+        if (!isFlying) return;
+        
+        if (currentIndex >= path.length - 1) {
+          stopFlyover();
+          return;
+        }
+
+        const currentPoint = path[currentIndex];
+        const nextPoint = path[currentIndex + 1];
+
+        // Smooth interpolation using spherical geometry
+        let interpolatedPoint = currentPoint;
+        let heading = adminMap.getHeading() || 0;
+        
+        try {
+          const spherical = google.maps.geometry.spherical;
+          heading = spherical.computeHeading(currentPoint, nextPoint);
+          interpolatedPoint = spherical.interpolate(currentPoint, nextPoint, fraction);
+        } catch(e) {
+          console.warn('Geometry library missing');
+          interpolatedPoint = currentPoint;
+        }
+
+        // Animate the camera
+        adminMap.moveCamera({
+          center: interpolatedPoint,
+          heading: heading,
+          tilt: 65,
+          zoom: 19
+        });
+        
+        // Update marker position
+        flyoverMarker.setPosition(interpolatedPoint);
+        
+        // Update dynamic line
+        const currentPath = flyoverPolyline.getPath();
+        if (fraction === 0) {
+           currentPath.push(interpolatedPoint);
+        } else {
+           currentPath.setAt(currentPath.getLength() - 1, interpolatedPoint);
+        }
+
+        fraction += speed;
+        if (fraction >= 1.0) {
+          fraction = 0;
+          currentIndex++;
+        }
+
+        // Request next frame for 60FPS loop
+        flyoverAnimationId = requestAnimationFrame(step);
+      }
+
+      // Start the animation loop
+      flyoverAnimationId = requestAnimationFrame(step);
+    }
   </script>
-  <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&callback=initMap&loading=async"
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&libraries=geometry,marker&callback=initMap&loading=async"
     async defer></script>
 </body>
 

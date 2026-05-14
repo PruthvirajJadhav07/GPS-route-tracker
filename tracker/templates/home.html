@@ -381,6 +381,25 @@
             box-shadow: 0 8px 28px rgba(255, 69, 58, 0.22);
         }
 
+        /* ── Active (Pressed) States ── */
+        .btn-start.active {
+            background: var(--surface-2) !important;
+            color: rgba(255, 255, 255, 0.4) !important;
+            border: 1px solid var(--border-dim) !important;
+            box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+            transform: scale(0.96) !important;
+            cursor: not-allowed;
+        }
+
+        .btn-stop.active {
+            background: var(--surface-2) !important;
+            color: rgba(255, 69, 58, 0.4) !important;
+            border: 1px solid var(--border-dim) !important;
+            box-shadow: inset 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+            transform: scale(0.96) !important;
+            cursor: not-allowed;
+        }
+
         .btn-history {
             background: var(--surface-2);
             color: var(--txt-2);
@@ -479,12 +498,229 @@
                 font-size: 21px;
             }
         }
+
+        .history-route-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .btn-delete-route {
+            flex: 1;
+            padding: 8px 12px;
+            background: transparent;
+            color: #EA4335;
+            border: 1px solid #EA4335;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s ease,
+                color 0.2s ease,
+                transform 0.15s ease;
+        }
+
+        .btn-delete-route:hover {
+            background: #EA4335;
+            color: white;
+        }
+
+        .btn-delete-route:active {
+            transform: scale(0.96);
+        }
+
+        .btn-delete-route:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Make view button flex too */
+        .btn-view-route {
+            flex: 2;
+        }
+
+        /* Fullscreen Map Button */
+        #fullscreen-btn {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 999;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: none;
+            background: white;
+            color: #333;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+            transition: background 0.2s, transform 0.15s;
+        }
+
+        #fullscreen-btn:hover {
+            background: #f0f0f0;
+            transform: scale(1.08);
+        }
+
+        /* ══════════════════════════════════════════
+            REDESIGNED CONTROL PANEL
+   ══════════════════════════════════════════ */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        /* Top row: Speed widget + Stop badge side by side */
+        .controls-top-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        /* Primary actions row: Start + Stop full width */
+        .controls-primary-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        /* Secondary actions row: History + Offline equal width */
+        .controls-secondary-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        /* Make all buttons in primary row fill their cell */
+        .controls-primary-row .btn,
+        .controls-secondary-row .btn {
+            width: 100%;
+            justify-content: center;
+        }
+
+        /* btn-outline style (was missing) */
+        .btn-outline {
+            background: var(--surface-2);
+            color: var(--txt-2);
+            border: 1px solid var(--border-mid);
+        }
+
+        .btn-outline:hover {
+            transform: translateY(-3px) scale(1.03);
+            background: var(--surface-3);
+            border-color: var(--border-lit);
+            color: var(--txt-1);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        }
+
+        /* Mini map button — subtle, full width */
+        #mini-map-btn {
+            width: 100%;
+            padding: 10px 16px;
+            background: var(--surface-2);
+            color: var(--txt-3);
+            border: 1px dashed var(--border-dim);
+            border-radius: var(--r-md);
+            font-family: var(--font-body);
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            letter-spacing: 0.02em;
+            transition: all 0.25s var(--fluid);
+            margin-bottom: 12px;
+        }
+
+        #mini-map-btn:hover {
+            background: var(--surface-3);
+            border-color: var(--border-mid);
+            color: var(--txt-2);
+        }
+
+        /* Stop indicator inside top row */
+        #stop-indicator {
+            flex: 1;
+            min-width: 140px;
+        }
+
+        @media (max-width: 480px) {
+
+            .controls-primary-row,
+            .controls-secondary-row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 
     <script>
         // ═══════════════════════════════════════════
+        // OFFLINE DATABASE — IndexedDB Fallback
+        // ═══════════════════════════════════════════
+        const OfflineDB = {
+            dbName: 'RoutehawkOfflineDB',
+            storeName: 'offline_routes',
+            version: 1,
+
+            async openDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.version);
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(this.storeName)) {
+                            db.createObjectStore(this.storeName, { keyPath: 'id', autoIncrement: true });
+                        }
+                    };
+                    request.onsuccess = (e) => resolve(e.target.result);
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            async saveRoute(routeData) {
+                const db = await this.openDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(this.storeName, 'readwrite');
+                    const store = tx.objectStore(this.storeName);
+                    const request = store.add(routeData);
+                    request.onsuccess = () => resolve();
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            async getAllRoutes() {
+                const db = await this.openDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(this.storeName, 'readonly');
+                    const store = tx.objectStore(this.storeName);
+                    const request = store.getAll();
+                    request.onsuccess = (e) => resolve(e.target.result);
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            async deleteRoute(id) {
+                const db = await this.openDB();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(this.storeName, 'readwrite');
+                    const store = tx.objectStore(this.storeName);
+                    const request = store.delete(id);
+                    request.onsuccess = () => resolve();
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            }
+        };
+
+        // ═══════════════════════════════════════════
         // MOTION FILTER — Kalman-style GPS smoother
-        // Adapts trust level based on GPS accuracy
+        // TIME-AWARE: Bypasses prediction when GPS
+        // updates are sparse (screen locked/background)
         // ═══════════════════════════════════════════
         class MotionFilter {
             constructor() {
@@ -495,6 +731,7 @@
                 this.posGain = 0.45;
                 this.velGain = 0.15;
                 this.damping = 0.80;
+                this.lastUpdateTime = 0;  // Track time between GPS updates
             }
 
             reset() {
@@ -502,21 +739,46 @@
                 this.lon = null;
                 this.vLat = 0;
                 this.vLon = 0;
+                this.lastUpdateTime = 0;
             }
 
             update(lat, lon, acc) {
+                const now = Date.now();
+
                 // First point — initialize directly
                 if (this.lat === null) {
                     this.lat = lat;
                     this.lon = lon;
+                    this.lastUpdateTime = now;
                     return [lat, lon];
                 }
 
+                const timeSinceLast = (now - this.lastUpdateTime) / 1000;
+                this.lastUpdateTime = now;
+
+                // ── BACKGROUND MODE DETECTION ──
+                // When screen is locked, GPS fires every 5-15 seconds.
+                // The velocity prediction was built for 1-second intervals.
+                // FIX: If gap > 2 seconds, just use raw GPS. No prediction, no smoothing.
+                // The snap-to-road API handles all road-centering.
+                if (timeSinceLast > 2) {
+                    this.lat = lat;
+                    this.lon = lon;
+                    this.vLat = 0;
+                    this.vLon = 0;
+                    return [lat, lon];
+                }
+
+                // ── FOREGROUND MODE (frequent updates, <2s apart) ──
+                // Full Kalman-style smoothing for buttery screen-on experience.
+
                 // Adapt trust level based on GPS accuracy
                 // Low accuracy number = high quality GPS signal
-                if (acc < 6) this.posGain = 0.6;   // Excellent GPS
-                else if (acc < 12) this.posGain = 0.4;   // Good GPS
-                else this.posGain = 0.15;  // Poor GPS — distrust
+                if (acc < 6) this.posGain = 0.6;
+                else if (acc < 15) this.posGain = 0.4;
+                else if (acc < 35) this.posGain = 0.20;
+                else if (acc < 65) this.posGain = 0.10;
+                else this.posGain = 0.05;
 
                 // Prediction step
                 let pLat = this.lat + this.vLat;
@@ -610,7 +872,10 @@
                 }
 
                 let t = ((px - ax) * dx + (py - ay) * dy) / lenSq;
-                t = Math.max(-0.5, Math.min(2.5, t));
+                // BUG 3 FIX: Clamp t to [0, 1] strictly.
+                // Original [-0.5, 2.5] projected marker 150% beyond segment ends
+                // causing ghost drift on turns where next segment hasn't loaded.
+                t = Math.max(0, Math.min(1, t));
 
                 const projLat = ax + t * dx;
                 const projLon = ay + t * dy;
@@ -765,8 +1030,120 @@
         const segmentLocker = new SegmentLocker();
 
         // ══════════════════════════════════════════════
+        // BUG 1 FIX: SERIAL SNAP QUEUE
+        // ──────────────────────────────────────────────
+        // Original code fired multiple async snap calls in parallel.
+        // If batch 2 resolved before batch 1, older GPS points were
+        // appended AFTER newer ones → polyline drew backwards → triangle.
+        //
+        // Fix: Process snaps one at a time via a queue.
+        // Each batch waits for the previous to finish before pushing
+        // to routePoints. Order is now ALWAYS chronological.
+        // ══════════════════════════════════════════════
+        const SnapQueue = {
+            _running: false,
+            _queue: [],
+            _nextSeqNum: 0,
+
+            enqueue(batch, overlapCount = 0) {
+                const seqNum = this._nextSeqNum++;
+                this._queue.push({ batch, seqNum, overlapCount });
+                this._flush();
+            },
+
+            async _flush() {
+                if (this._running) return;
+                this._running = true;
+
+                while (this._queue.length > 0) {
+                    const { batch, seqNum, overlapCount } = this._queue.shift();
+                    await this._processBatch(batch, seqNum, overlapCount);
+                }
+
+                this._running = false;
+            },
+
+            async _processBatch(batch, seqNum, overlapCount) {
+                try {
+                    const pathStr = batch.map(p => `${p.lat},${p.lon}`).join('|');
+                    const url = `https://roads.googleapis.com/v1/snapToRoads?path=${pathStr}&interpolate=true&key=${GAPI_KEY}`;
+                    const res = await fetch(url);
+
+                    if (!res.ok) {
+                        // BUG 2 FIX: On snap failure, do NOT push raw GPS.
+                        // Raw points mixed with snapped points cause jagged triangles.
+                        // Silently skip failed batches — tiny gap but NO zigzag.
+                        console.warn('Roads API error:', res.status, '— skipping batch');
+                        return;
+                    }
+
+                    const data = await res.json();
+                    const raw = data.snappedPoints || [];
+
+                    if (raw.length === 0) {
+                        console.warn('Snap returned 0 points — skipping batch');
+                        return;
+                    }
+
+                    // ✨ DEDUP FILTERING — distance-based ✨
+                    // With interpolate=true, consecutive batches may return
+                    // overlapping road geometry near their boundaries.
+                    // Instead of relying on unreliable originalIndex, we simply
+                    // skip any returned point that's within 2m of the last
+                    // point already in routePoints. Clean and foolproof.
+                    const allSnapped = raw.map(p => ({
+                        lat: p.location.latitude,
+                        lon: p.location.longitude
+                    }));
+
+                    const snappedPts = [];
+                    for (const pt of allSnapped) {
+                        const lastPt = snappedPts.length > 0
+                            ? snappedPts[snappedPts.length - 1]
+                            : (routePoints.length > 0 ? routePoints[routePoints.length - 1] : null);
+
+                        if (lastPt) {
+                            const d = haversineJS(lastPt.lat, lastPt.lon, pt.lat, pt.lon);
+                            if (d < 2) continue; // skip duplicate/overlap point
+                        }
+                        snappedPts.push(pt);
+                    }
+
+                    console.log(`SNAP [seq=${seqNum}] returned ${allSnapped.length} raw → ${snappedPts.length} after dedup`);
+
+                    if (snappedPts.length === 0) return;
+
+                    lastSnappedPos = snappedPts[snappedPts.length - 1];
+                    segmentLocker.feedRoadPoints(snappedPts);
+
+                    // Push in guaranteed order (queue ensures this)
+                    routePoints.push(...snappedPts);
+
+                    if (snappedPolyline) {
+                        snappedPolyline.setPath(
+                            routePoints.map(p => ({
+                                lat: parseFloat(p.lat),
+                                lng: parseFloat(p.lon)
+                            }))
+                        );
+                    }
+                } catch (e) {
+                    // BUG 2 FIX: Network errors also skip — no raw fallback
+                    console.warn(`Snap batch [seq=${seqNum}] network error:`, e.message);
+                }
+            },
+
+            reset() {
+                this._queue = [];
+                this._running = false;
+                this._nextSeqNum = 0;
+            }
+        };
+
+        // ══════════════════════════════════════════════
         // PART 1 — Global Variable Declarations
         // ══════════════════════════════════════════════
+        const GAPI_KEY = '{{ GOOGLE_MAPS_API_KEY }}';
         let map;
         let snappedPolyline = null;
         let routePolyline = null;
@@ -777,21 +1154,35 @@
         let smoothedBuffer = [];
         // Global variables for new aggressive snap pipeline
         let snapBuffer = [];
+        let snapOverlap = [];
         let lastSnappedPos = null;
         let snapBatchBuffer = [];
         let totalDistanceMeters = 0;
         let lastPoint = null;
         let isTracking = false;
         let watchId = null;
+        let bgWatcherId = null;
         let trackingStartTime = null;
         let durationInterval = null;
         let _activeAnimation = null;
         let historyPage = 1;
 
+        // Background Tracking Globals
+        let screenLocked = false;
+        let bgRawBuffer = [];
+        let rawPoints = [];  // ALL raw GPS points collected during tracking
+
         let anchorPoints = [];  // Road-snapped anchors
         let lastAnchor = null;
         let roadPathBuffer = [];  // Accumulated road geometry
         const ANCHOR_DIST_M = 25;  // Get road path every 25m
+
+        let isIdle = false;
+        let lastReportedSpeed = 0;
+        let lastHeading = 0;
+        let currentHeading = 0;
+        let idleMarker = null;
+        let stationarySeconds = 0;
 
         // ══════════════════════════════════════════════
         // PART 2 — Utility / Helper Functions
@@ -847,6 +1238,35 @@
             if (el) el.textContent = count;
         }
 
+        function updateSpeedDisplay(speedMs) {
+            const speedKmh = Math.round((speedMs || 0) * 3.6);
+            const valEl = document.getElementById('speed-value');
+            const ringEl = document.getElementById('speed-ring');
+            if (valEl) valEl.textContent = speedKmh;
+
+            if (ringEl) {
+                const maxSpeed = 120;
+                const circumference = 201;
+                const percentage = Math.min(speedKmh / maxSpeed, 1);
+                const offset = circumference - (percentage * circumference);
+                ringEl.style.strokeDashoffset = offset;
+
+                if (speedKmh > 80) {
+                    ringEl.style.stroke = '#FF453A';
+                    if (valEl) valEl.style.color = '#FF453A';
+                } else if (speedKmh > 50) {
+                    ringEl.style.stroke = '#FFD60A';
+                    if (valEl) valEl.style.color = '#FFD60A';
+                } else if (speedKmh > 0) {
+                    ringEl.style.stroke = '#30D158';
+                    if (valEl) valEl.style.color = '#30D158';
+                } else {
+                    ringEl.style.stroke = 'rgba(255,255,255,0.15)';
+                    if (valEl) valEl.style.color = '#9E9E9E';
+                }
+            }
+        }
+
         function setTrackingStatus(active) {
             const el = document.getElementById('tracking-status');
             if (!el) return;
@@ -855,17 +1275,90 @@
                 : '<span class="status-dot idle"></span>Idle';
         }
 
+        async function sendLiveHeartbeat() {
+            if (!isTracking || !lastPoint) return;
+            const csrf = getValidCsrfToken();
+            if (!csrf) return;
+
+            let batteryLevel = null;
+            try {
+                if (navigator.getBattery) {
+                    const battery = await navigator.getBattery();
+                    batteryLevel = Math.round(battery.level * 100);
+                } else if (window.Capacitor && window.Capacitor.Plugins.Device) {
+                    const info = await window.Capacitor.Plugins.Device.getBatteryInfo();
+                    batteryLevel = Math.round(info.batteryLevel * 100);
+                }
+            } catch (e) {
+                console.warn('Battery API unavailable:', e);
+            }
+
+            try {
+                await fetch('/live_heartbeat/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                    body: JSON.stringify({
+                        lat: parseFloat(lastPoint.lat),
+                        lon: parseFloat(lastPoint.lon),
+                        speed: parseFloat(lastReportedSpeed),
+                        status: isIdle ? 'idle' : 'active',
+                        battery: batteryLevel
+                    })
+                });
+            } catch (e) {
+                console.warn('Heartbeat failed:', e);
+            }
+        }
+
         function startDurationTimer() {
             trackingStartTime = Date.now();
+            let elapsedSeconds = 0;
+            stationarySeconds = 0;
+
             durationInterval = setInterval(() => {
                 const elapsed = Math.floor(
                     (Date.now() - trackingStartTime) / 1000
                 );
+                elapsedSeconds++;
+
                 const mins = String(
                     Math.floor(elapsed / 60)).padStart(2, '0');
                 const secs = String(elapsed % 60).padStart(2, '0');
                 const el = document.getElementById('trip-duration');
                 if (el) el.textContent = mins + ':' + secs;
+
+                // --- Live Heartbeat (Every 60s) ---
+                if (elapsedSeconds % 60 === 0 && lastPoint) {
+                    sendLiveHeartbeat();
+                }
+
+                // --- Auto-Idle Detection ---
+                if (lastPoint) {
+                    // 1 km/h is ~0.27 m/s
+                    if (lastReportedSpeed < 0.27) {
+                        stationarySeconds++;
+                        if (stationarySeconds >= 120 && !isIdle) {
+                            isIdle = true;
+                            showGpsToast('⏸️ Auto-paused (Idle for 2+ mins)');
+                            setTrackingStatus(false);
+
+                            idleMarker = placeMarker(lastPoint.lat, lastPoint.lon, '#FFA500', 'Stopped here', 1.0);
+                            routePoints.push({ lat: lastPoint.lat, lon: lastPoint.lon, event: 'IDLE_START' });
+                        }
+                    } else {
+                        if (isIdle) {
+                            showGpsToast('▶️ Resuming route...');
+                            setTrackingStatus(true);
+                            routePoints.push({ lat: lastPoint.lat, lon: lastPoint.lon, event: 'IDLE_END', idle_duration: stationarySeconds });
+                        }
+                        isIdle = false;
+                        stationarySeconds = 0;
+                        if (idleMarker) {
+                            idleMarker.setMap(null);
+                            idleMarker = null;
+                        }
+                    }
+                }
             }, 1000);
         }
 
@@ -885,6 +1378,7 @@
             updatePointsCount(0);
             setTrackingStatus(false);
             stopDurationTimer();
+            updateSpeedDisplay(0);
             const el = document.getElementById('trip-duration');
             if (el) el.textContent = '00:00';
         }
@@ -995,20 +1489,107 @@
         // ══════════════════════════════════════════════
 
         function initGoogleMap() {
+            // ── Dark Mode Map Styling ────────────────────
+            const DARK_MAP_STYLE = [
+                { elementType: 'geometry', stylers: [{ color: '#1d2c4d' }] },
+                { elementType: 'labels.text.fill', stylers: [{ color: '#8ec3b9' }] },
+                { elementType: 'labels.text.stroke', stylers: [{ color: '#1a3646' }] },
+                {
+                    featureType: 'administrative.country',
+                    elementType: 'geometry.stroke',
+                    stylers: [{ color: '#4b6878' }]
+                },
+                {
+                    featureType: 'land_parcel',
+                    elementType: 'labels.text.fill',
+                    stylers: [{ color: '#64779e' }]
+                },
+                {
+                    featureType: 'poi',
+                    elementType: 'geometry',
+                    stylers: [{ color: '#283d6a' }]
+                },
+                {
+                    featureType: 'poi',
+                    elementType: 'labels.text.fill',
+                    stylers: [{ color: '#6f9ba5' }]
+                },
+                {
+                    featureType: 'poi.park',
+                    elementType: 'geometry.fill',
+                    stylers: [{ color: '#023e58' }]
+                },
+                {
+                    featureType: 'road',
+                    elementType: 'geometry',
+                    stylers: [{ color: '#304a7d' }]
+                },
+                {
+                    featureType: 'road',
+                    elementType: 'labels.text.fill',
+                    stylers: [{ color: '#98a5be' }]
+                },
+                {
+                    featureType: 'road.highway',
+                    elementType: 'geometry',
+                    stylers: [{ color: '#2c6675' }]
+                },
+                {
+                    featureType: 'road.highway',
+                    elementType: 'geometry.stroke',
+                    stylers: [{ color: '#255763' }]
+                },
+                {
+                    featureType: 'road.highway',
+                    elementType: 'labels.text.fill',
+                    stylers: [{ color: '#b0d5ce' }]
+                },
+                {
+                    featureType: 'transit',
+                    elementType: 'labels.text.fill',
+                    stylers: [{ color: '#98a5be' }]
+                },
+                {
+                    featureType: 'transit.station',
+                    elementType: 'geometry',
+                    stylers: [{ color: '#2a3f67' }]
+                },
+                {
+                    featureType: 'water',
+                    elementType: 'geometry',
+                    stylers: [{ color: '#0e1626' }]
+                },
+                {
+                    featureType: 'water',
+                    elementType: 'labels.text.fill',
+                    stylers: [{ color: '#4e6d70' }]
+                }
+            ];
+
             map = new google.maps.Map(
                 document.getElementById('map'), {
                 center: { lat: 16.7050, lng: 74.2433 },
                 zoom: 15,
                 mapTypeId: 'roadmap',
                 mapId: 'GPS_ROUTE_TRACKER_MAP',
+                styles: DARK_MAP_STYLE,
                 zoomControl: true,
-                mapTypeControl: false,
+                mapTypeControl: true,
+                mapTypeControlOptions: {
+                    style: google.maps.MapTypeControlStyle.DROPDOWN_MENU,
+                    position: google.maps.ControlPosition.TOP_RIGHT,
+                    mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain']
+                },
                 scaleControl: true,
                 streetViewControl: false,
                 rotateControl: false,
                 fullscreenControl: true
             }
             );
+
+            // ── Traffic Layer ─────────────────────────────
+            const trafficLayer = new google.maps.TrafficLayer();
+            trafficLayer.setMap(map);
         }
 
         // CRITICAL — must be assigned before Google Maps loads
@@ -1017,6 +1598,14 @@
         // ══════════════════════════════════════════════
         // PART 5 — GPS Pipeline Functions
         // ══════════════════════════════════════════════
+
+        // ── Background Buffer Sync ──
+        // With the new raw-first architecture, we no longer need
+        // complex background flushing. GPS points are saved to rawPoints[]
+        // regardless of screen state. No API calls during tracking.
+        document.addEventListener('visibilitychange', () => {
+            screenLocked = document.hidden;
+        });
 
         // Adaptive sampling interval based on speed
         function getSamplingInterval(speedMs) {
@@ -1135,39 +1724,100 @@
 
             if (isNaN(rawLat) || isNaN(rawLon)) return;
 
+            // Tighter initial lock: require < 25m accuracy for the VERY FIRST point
+            // This prevents "cell-tower jump" which snaps to the wrong parallel road
+            if (acc > 25 && lastPoint === null) {
+                console.warn('Waiting for true satellite lock... acc:', acc + 'm');
+                showGpsToast(`Initial GPS locking... ${Math.round(acc)}m (Wait)`);
+                return;
+            }
+
+            // ── ACCURACY GATE: Reject garbage cell-tower positions ──
+            // When screen is locked, Android may downgrade GPS to cell-tower (30m+).
+            // We silently discard these so the marker never "dagmag" / drunk-walks.
+            // Good satellite points (< 30m) still flow through normally.
+            // Use hardware speed if available, otherwise fallback to last known calculated speed
+            const currentSpeedKmh = (position.coords.speed != null ? position.coords.speed : lastReportedSpeed) * 3.6;
+
+            const accThreshold = currentSpeedKmh > 60 ? 15   // highway → strict
+                : currentSpeedKmh > 20 ? 20   // city → moderate
+                    : 30;                   // walking → relaxed
+
+            if (acc > accThreshold) {
+                console.warn(`Rejecting point: acc=${acc}m > threshold=${accThreshold}m @ ${currentSpeedKmh.toFixed(1)}km/h`);
+                return;
+            }
+
             // Apply motion filter for smooth movement
             const [filtLat, filtLon] = motionFilter.update(
                 rawLat, rawLon, acc
             );
+
+            console.log(`KALMAN: raw=(${rawLat.toFixed(6)},${rawLon.toFixed(6)}) filtered=(${filtLat.toFixed(6)},${filtLon.toFixed(6)}) diff=${haversineJS(rawLat, rawLon, filtLat, filtLon).toFixed(2)}m`);
 
             // Confidence check — reject impossible jumps
             if (!calculateConfidence(
                 { lat: filtLat, lon: filtLon }, lastPoint
             )) return;
 
-            // Distance filter — ignore micro movements < 2m
+            // Distance filter — ignore micro movements < 1.5m to prevent stationary jiggle
             if (lastPoint) {
                 const dist = haversineJS(
                     lastPoint.lat, lastPoint.lon, filtLat, filtLon
                 );
-                if (dist < 2) return;
+
+                // Keep track of speed for Idle Detection
+                const dt = (Date.now() - (lastPoint.timestamp || Date.now())) / 1000 || 1;
+                lastReportedSpeed = position.coords.speed !== null ? position.coords.speed : (dist / dt);
+
+                console.log('DIST FROM LAST:', dist.toFixed(2) + 'm', '| SPEED:', lastReportedSpeed.toFixed(2));
+
+                if (dist < 5) {
+                    lastReportedSpeed = 0; // force 0 if jitter
+                    updateSpeedDisplay(lastReportedSpeed);
+                    return;
+                }
+            } else {
+                lastReportedSpeed = position.coords.speed || 0;
             }
 
-            const currentPoint = { lat: filtLat, lon: filtLon };
+            updateSpeedDisplay(lastReportedSpeed);
+
+            const currentPoint = { lat: filtLat, lon: filtLon, timestamp: Date.now() };
+            // Raw GPS point for snap API — snap does its own road-centering,
+            // so sending pre-filtered data adds unnecessary lag/error on turns.
+            const rawPoint = { lat: rawLat, lon: rawLon };
+
+            // ── BOOTSTRAP: On very first point, seed segment locker immediately ──
+            // This ensures marker is road-locked from point 1, not after 3-point batch
+            // Bootstrap — seed segment locker on very first point only
+            if (!lastPoint && segmentLocker.segments.length === 0) {
+                (async () => {
+                    try {
+                        const pathStr = `${filtLat},${filtLon}|${filtLat},${filtLon}`;
+                        const url = `https://roads.googleapis.com/v1/snapToRoads?path=${pathStr}&interpolate=true&key=${GAPI_KEY}`;
+                        const res = await fetch(url);
+                        if (!res.ok) return;
+                        const data = await res.json();
+                        const raw = data.snappedPoints || [];
+                        if (raw.length === 0) return;
+                        segmentLocker.feedRoadPoints(raw.map(p => ({
+                            lat: p.location.latitude,
+                            lon: p.location.longitude
+                        })));
+                    } catch (e) {
+                        console.warn('Bootstrap snap failed:', e.message);
+                    }
+                })();
+            }
+
 
             // ── INSTANT DISPLAY: Use segment locker or last snap ──
-            // This gives ZERO lag while we wait for Roads API
-            const locked = segmentLocker.lock(currentPoint);
-            // Prefer: last snapped position > segment lock > raw GPS
-            const displayLat = lastSnappedPos ? lastSnappedPos.lat
-                : locked ? locked.lat
-                    : filtLat;
-            const displayLon = lastSnappedPos ? lastSnappedPos.lon
-                : locked ? locked.lon
-                    : filtLon;
+            const lockedPos = segmentLocker.lock(currentPoint);
+            const displayLat = lockedPos ? lockedPos.lat : filtLat;
+            const displayLon = lockedPos ? lockedPos.lon : filtLon;
 
-
-
+            console.log(`LOCKER: segments=${segmentLocker.segments.length} locked=${lockedPos ? 'YES dist=' + segmentLocker._approxDist(currentPoint, lockedPos).toFixed(2) + 'm' : 'NO → raw GPS used'}`);
             // ── Draw raw GPS faintly ──
 
 
@@ -1183,14 +1833,10 @@
                 movingMarker = createNavigationMarker(
                     displayLat, displayLon
                 );
-
             } else if (lastPoint) {
-                // Always animate FROM current marker screen position
-                // so there is never a snap-back jump
                 const prevPos = movingMarker.position;
-                const prevLat = prevPos ? parseFloat(prevPos.lat) : displayLat;
-                const prevLon = prevPos ? parseFloat(prevPos.lng) : displayLon;
-
+                const prevLat = prevPos ? parseFloat(prevPos.lat) : parseFloat(lastPoint.lat);
+                const prevLon = prevPos ? parseFloat(prevPos.lng) : parseFloat(lastPoint.lon);
                 updateMarkerHeading(
                     { lat: prevLat, lon: prevLon },
                     { lat: displayLat, lon: displayLon }
@@ -1201,7 +1847,6 @@
                     displayLat, displayLon, 600
                 );
             }
-
             // Update distance
             if (lastPoint) {
                 const seg = haversineJS(
@@ -1216,149 +1861,132 @@
 
             lastPoint = currentPoint;
 
-            // Only push to routePoints if we have a snapped position
-            // Raw GPS only as absolute fallback on very first point
-            const pushLat = lastSnappedPos ? lastSnappedPos.lat
-                : locked ? locked.lat
-                    : filtLat;
-            const pushLon = lastSnappedPos ? lastSnappedPos.lon
-                : locked ? locked.lon
-                    : filtLon;
+            // Push lockedPos to polyline — it's already road centered
+            // Raw GPS only if locker has no segments yet
+            const pushLat = lockedPos ? lockedPos.lat : filtLat;
+            const pushLon = lockedPos ? lockedPos.lon : filtLon;
 
-            routePoints.push({ lat: pushLat, lon: pushLon });
+            // NOTE: We do NOT add raw points to routePoints/polyline here.
+            // Raw GPS causes triangles when snap-to-road corrects them later.
+            // The blue polyline is ONLY built from snap-corrected points (Layer A).
+            // The marker still moves instantly using pushLat/pushLon above.
+
+
+            // Throttle map panning to every 1.5 seconds to prevent UI stutter
+            if (!window.lastPan || Date.now() - window.lastPan > 1500) {
+                map.panTo({ lat: displayLat, lng: displayLon });
+                window.lastPan = Date.now();
+            }
+
+            // ══════════════════════════════════════════════
+            // RAW-FIRST ARCHITECTURE
+            // Save raw point + draw raw line instantly.
+            // Works offline, no API calls, no triangles.
+            // Full route gets snapped AFTER stop tracking.
+            // ══════════════════════════════════════════════
+            rawPoints.push(rawPoint);
+
+            // Draw raw line instantly — no API needed
             if (snappedPolyline) {
                 snappedPolyline.setPath(
-                    routePoints.map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }))
+                    rawPoints.map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }))
                 );
-            }
-            updatePointsCount(routePoints.length);
-            map.panTo({ lat: displayLat, lng: displayLon });
-
-            // ══════════════════════════════════════════════
-            // LAYER A: SNAP TO ROAD every 3 GPS points
-            // Uses Google Roads API (snapToRoads) — this is
-            // what actually GLUES the marker to road center.
-            // The segment locker above provides instant
-            // positioning while we wait for this response.
-            // ══════════════════════════════════════════════
-            snapBuffer.push(currentPoint);
-
-            if (snapBuffer.length >= 3) {
-                const batch = [...snapBuffer];
-                snapBuffer = [];
-
-                // Fire in background — never blocks GPS
-                ; (async () => {
-                    try {
-                        const csrf = getValidCsrfToken();
-                        if (!csrf) return;
-
-                        const res = await fetch('/snap_chunk/', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRFToken': csrf
-                            },
-                            body: JSON.stringify({ points: batch })
-                        });
-
-                        if (!handleResponseAuth(res)) return;
-                        if (!res.ok) return;
-
-                        const data = await res.json();
-                        const snapped = data.snapped || [];
-
-                        if (snapped.length === 0) return;
-
-                        // Parse snapped points
-                        const snappedPts = snapped.map(p => ({
-                            lat: parseFloat(p.lat ?? p[0]),
-                            lon: parseFloat(p.lon ?? p.lng ?? p[1])
-                        })).filter(p => !isNaN(p.lat) && !isNaN(p.lon));
-
-                        //if (snappedPts.length === 0) return;
-                        if (snappedPts.length > 0) {
-
-                            const newest = snappedPts[snappedPts.length - 1];
-                            lastSnappedPos = newest;
-
-                            segmentLocker.feedRoadPoints(snappedPts);
-
-                            const spliceStart = Math.max(0, routePoints.length - batch.length);
-                            routePoints.splice(spliceStart, batch.length, ...snappedPts);
-
-                            if (snappedPolyline) {
-                                snappedPolyline.setPath(
-                                    routePoints.map(p => ({
-                                        lat: parseFloat(p.lat),
-                                        lng: parseFloat(p.lon)
-                                    }))
-                                );
-                            }
-                        }
-
-                    } catch (e) {
-                        console.warn('Snap chunk failed:', e.message);
-                    }
-                })();
-            }
-
-            // ══════════════════════════════════════════════
-            // LAYER B: Road path every 20m (for polyline)
-            // Uses Google Directions API for accurate
-            // road geometry on the drawn route line.
-            // ══════════════════════════════════════════════
-            if (!lastAnchor) {
-                lastAnchor = currentPoint;
-                anchorPoints.push(currentPoint);
-                return;
-            }
-
-            const distFromAnchor = haversineJS(
-                lastAnchor.lat, lastAnchor.lon,
-                filtLat, filtLon
-            );
-
-            if (distFromAnchor >= ANCHOR_DIST_M) {
-                const origin = { ...lastAnchor };
-                const destination = { ...currentPoint };
-                lastAnchor = currentPoint;
-                anchorPoints.push(currentPoint);
-
-                ; (async () => {
-                    try {
-                        const csrf = getValidCsrfToken();
-                        if (!csrf) return;
-
-                        const res = await fetch('/get_road_path/', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'X-CSRFToken': csrf
-                            },
-                            body: JSON.stringify({ origin, destination })
-                        });
-
-                        if (!handleResponseAuth(res)) return;
-                        if (!res.ok) return;
-
-                        const data = await res.json();
-                        const roadPoints = data.path || [];
-
-                        if (roadPoints.length < 2) return;
-
-                        // Feed road geometry to segment locker too
-                        segmentLocker.feedRoadPoints(roadPoints);
-
-                    } catch (e) {
-                        console.warn('Road path fetch failed:', e.message);
-                    }
-                })();
             }
         }
 
         function onGPSError(error) {
             console.error('GPS Error:', error.code, error.message);
+            if (error.code === 1) {
+                // PERMISSION_DENIED — show helpful denied modal
+                showPermissionDeniedModal();
+            }
+        }
+
+        function showGpsToast(msg) {
+            const existing = document.getElementById('gps-toast');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.id = 'gps-toast';
+            toast.textContent = msg;
+            toast.style.cssText = `
+                position: fixed;
+                bottom: 24px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: rgba(255, 69, 58, 0.92);
+                color: white;
+                padding: 10px 20px;
+                border-radius: 20px;
+                font-size: 13px;
+                font-weight: 600;
+                z-index: 9999;
+                backdrop-filter: blur(10px);
+                box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+                transition: opacity 0.4s ease;
+            `;
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => toast.remove(), 400);
+            }, 3000);
+        }
+
+        // ══════════════════════════════════════════════
+        // SNAP FULL ROUTE — Post-tracking road snapping
+        // Sends the ENTIRE raw route to Roads API in
+        // overlapping chunks. Gets back perfectly road-
+        // centered points with smooth turn curves.
+        // ══════════════════════════════════════════════
+        async function snapFullRoute(points) {
+            if (points.length === 0) return [];
+
+            const allSnapped = [];
+            // Process in chunks of 90 with 1-point overlap for seamless boundaries
+            for (let i = 0; i < points.length; i += 89) {
+                const chunk = points.slice(i, i + 90);
+                if (chunk.length < 2) {
+                    // Single point can't be snapped meaningfully
+                    allSnapped.push(chunk[0]);
+                    continue;
+                }
+
+                try {
+                    const pathStr = chunk.map(p => `${p.lat},${p.lon}`).join('|');
+                    const url = `https://roads.googleapis.com/v1/snapToRoads?path=${pathStr}&interpolate=true&key=${GAPI_KEY}`;
+                    const res = await fetch(url);
+                    if (!res.ok) {
+                        console.warn('snapFullRoute chunk failed:', res.status);
+                        // Skip chunk — never push raw into snapped array
+                        continue;
+                    }
+                    const data = await res.json();
+                    const snappedPts = (data.snappedPoints || []).map(p => ({
+                        lat: p.location.latitude,
+                        lon: p.location.longitude
+                    }));
+
+                    // Distance-based dedup against last appended point
+                    for (const pt of snappedPts) {
+                        if (allSnapped.length > 0) {
+                            const lastPt = allSnapped[allSnapped.length - 1];
+                            const d = haversineJS(lastPt.lat, lastPt.lon, pt.lat, pt.lon);
+                            if (d < 2) continue; // skip overlap duplicate
+                        }
+                        allSnapped.push(pt);
+                    }
+
+                    // Small delay between API calls to avoid rate limiting
+                    await new Promise(r => setTimeout(r, 200));
+                } catch (e) {
+                    console.warn('snapFullRoute chunk error:', e.message);
+                    // Don't push raw — skip chunk, keep what we have
+                }
+            }
+
+            console.log(`snapFullRoute: ${points.length} raw → ${allSnapped.length} snapped`);
+            return allSnapped;
         }
 
         // ══════════════════════════════════════════════
@@ -1366,14 +1994,31 @@
         // ══════════════════════════════════════════════
 
         function startTracking() {
+            // UI Button Toggling
+            const startBtn = document.getElementById('start-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            startBtn.classList.add('active');
+            startBtn.disabled = true;
+            stopBtn.classList.remove('active');
+            stopBtn.disabled = false;
+
             // Reset all state
             routePoints = [];
+            rawPoints = [];
             anchorPoints = [];
             roadPathBuffer = [];
             lastAnchor = null;
+            lastSnappedPos = null;
+            snapBuffer = [];
+            bgRawBuffer = [];
+            screenLocked = document.hidden;
+            lastPoint = null;
             motionFilter.reset();
             segmentLocker.reset();
+            SnapQueue.reset();
             resetStats();
+            lastHeading = 0;
+            currentHeading = 0;
 
             // Remove existing layers
 
@@ -1395,8 +2040,8 @@
             snappedPolyline = new google.maps.Polyline({
                 path: [],
                 geodesic: true,
-                strokeColor: '#1a73e8',  // Slightly darker blue
-                strokeOpacity: 1.0,        // Solid — this is the true route
+                strokeColor: '#00E5FF',  // Vibrant Neon Cyan
+                strokeOpacity: 0.9,        // Solid — this is the true route
                 strokeWeight: 6,
                 map: map,
                 zIndex: 10          // Renders on top of live line
@@ -1406,23 +2051,182 @@
             startDurationTimer();
             isTracking = true;
 
-            if (!navigator.geolocation) {
-                alert('Geolocation not supported.');
-                return;
-            }
+            // Check if we need to show permission prompt on native
+            const isCapacitorNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
 
-            watchId = navigator.geolocation.watchPosition(
-                onGPSSuccess, onGPSError,
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
+            if (isCapacitorNative && !localStorage.getItem('routehawk_perm_shown')) {
+                showPermissionModal();
+            } else {
+                initializeGPS();
+            }
+        }
+
+        // ── Permission Modal Functions ──
+
+        function showPermissionModal() {
+            document.getElementById('permission-modal').style.display = 'flex';
+        }
+
+        function onPermissionAccepted() {
+            localStorage.setItem('routehawk_perm_shown', 'true');
+            document.getElementById('permission-modal').style.display = 'none';
+            initializeGPS();
+        }
+
+        function onPermissionSkipped() {
+            document.getElementById('permission-modal').style.display = 'none';
+            // Revert tracking state since user declined
+            isTracking = false;
+            setTrackingStatus(false);
+            stopDurationTimer();
+            showGpsToast('⚠️ Location required to track routes');
+        }
+
+        function showPermissionDeniedModal() {
+            document.getElementById('permission-denied-modal').style.display = 'flex';
+        }
+
+        function closePermissionDeniedModal() {
+            document.getElementById('permission-denied-modal').style.display = 'none';
+            // Open Android App Settings directly so user can enable location
+            if (window.Capacitor && Capacitor.Plugins.BackgroundGeolocation) {
+                Capacitor.Plugins.BackgroundGeolocation.openSettings();
+            }
+        }
+
+        // ── GPS Initialization (extracted from startTracking) ──
+
+        function initializeGPS() {
+            const isCapacitorNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+
+            if (isCapacitorNative && window.Capacitor.Plugins && window.Capacitor.Plugins.BackgroundGeolocation) {
+                console.log('🟢 Using NATIVE Android GPS (BackgroundGeolocation plugin)');
+                showGpsToast('📡 Native GPS starting...');
+
+                Capacitor.Plugins.BackgroundGeolocation.addWatcher({
+                    backgroundMessage: 'Routehawk is tracking your route.',
+                    backgroundTitle: 'Routehawk Tracking Active',
+                    requestPermissions: true,
+                    distanceFilter: 5,  // Force update every 5m (guarantees smooth curves on turns)
+                    stale: false
+                }, (location, error) => {
+                    if (error) {
+                        console.error('Native GPS error:', error);
+                        if (error.code === 'NOT_AUTHORIZED') {
+                            showPermissionDeniedModal();
+                        } else {
+                            showGpsToast('⚠️ Native GPS error: ' + (error.message || error.code));
+                        }
+                        return;
+                    }
+                    if (!location || !isTracking) return;
+
+                    // ── FAKE GPS DETECTION (ANTI-SPOOFING) ──
+                    // Native Android flags mock locations. If they use a fake GPS app,
+                    // we silently drop the point, show a warning, AND report to the manager.
+                    if (location.simulated === true || location.mocked === true) {
+                        console.warn('⛔ Fake GPS app detected! Dropping mock location.');
+                        showGpsToast('⛔ FAKE GPS DETECTED! Please disable mock locations.');
+
+                        // Silently report to manager/superadmin
+                        try {
+                            const csrf = getValidCsrfToken();
+                            if (csrf) {
+                                fetch('/report_mock_gps/', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRFToken': csrf
+                                    },
+                                    body: JSON.stringify({
+                                        lat: location.latitude,
+                                        lon: location.longitude,
+                                        device_info: navigator.userAgent || 'Unknown device'
+                                    })
+                                });
+                            }
+                        } catch (e) { /* silent — don't alert the cheater */ }
+
+                        return; // Stop processing this point entirely
+                    }
+
+                    const shimPosition = {
+                        coords: {
+                            latitude: location.latitude,
+                            longitude: location.longitude,
+                            accuracy: location.accuracy || 10,
+                            speed: location.speed || 0
+                        }
+                    };
+                    onGPSSuccess(shimPosition);
+                }).then(id => {
+                    bgWatcherId = id;
+                    showGpsToast('✅ Native GPS active! Walk outside!');
+                }).catch(err => {
+                    console.error('Native GPS failed to start:', err);
+                    showGpsToast('⚠️ Native GPS failed — falling back to browser');
+                    watchId = navigator.geolocation.watchPosition(
+                        onGPSSuccess, onGPSError,
+                        { enableHighAccuracy: true, timeout: 30000, maximumAge: 10000 }
+                    );
+                });
+            } else {
+                // ── BROWSER GPS (iPhone Safari / Desktop Chrome) ──
+                if (!navigator.geolocation) {
+                    alert('Geolocation not supported.');
+                    return;
                 }
-            );
+
+                navigator.geolocation.getCurrentPosition(
+                    () => {
+                        watchId = navigator.geolocation.watchPosition(
+                            onGPSSuccess, onGPSError,
+                            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                        );
+                    },
+                    () => {
+                        watchId = navigator.geolocation.watchPosition(
+                            onGPSSuccess, onGPSError,
+                            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                        );
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+
+                let accuracyCheckCount = 0;
+                const accuracyChecker = navigator.geolocation.watchPosition(
+                    (pos) => {
+                        accuracyCheckCount++;
+                        if (accuracyCheckCount <= 3 && pos.coords.accuracy > 200) {
+                            showGpsToast(`GPS locking... ${Math.round(pos.coords.accuracy)}m — move near a window`);
+                        } else {
+                            navigator.geolocation.clearWatch(accuracyChecker);
+                        }
+                    },
+                    null,
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                );
+            }
         }
 
         async function stopTracking() {
             if (!isTracking) return;
+
+            const startBtn = document.getElementById('start-btn');
+            const stopBtn = document.getElementById('stop-btn');
+            startBtn.classList.remove('active');
+            startBtn.disabled = false;
+            stopBtn.classList.add('active');
+            stopBtn.disabled = true;
+
+            // Calculate duration safely and ensure it's a valid number
+            let tripDurationSeconds = trackingStartTime ? Math.floor((Date.now() - trackingStartTime) / 1000) : 0;
+            if (isNaN(tripDurationSeconds) || tripDurationSeconds < 0) tripDurationSeconds = 0;
+
+            // Ensure distance is a valid number
+            let safeDistance = parseFloat(totalDistanceMeters);
+            if (isNaN(safeDistance) || safeDistance < 0) safeDistance = 0;
+
             isTracking = false;
             setTrackingStatus(false);
             stopDurationTimer();
@@ -1432,13 +2236,28 @@
                 watchId = null;
             }
 
+            // Stop native Android GPS watcher if active
+            if (bgWatcherId !== null && window.Capacitor && Capacitor.Plugins.BackgroundGeolocation) {
+                Capacitor.Plugins.BackgroundGeolocation.removeWatcher({ id: bgWatcherId });
+                bgWatcherId = null;
+            }
+
             movingMarker = removeMarker(movingMarker);
 
-            // Wait briefly for any in-flight road path
-            // requests to complete before saving
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            // ══════════════════════════════════════════════
+            // RAW-FIRST SAVE ARCHITECTURE
+            // Step 1: Save locally IMMEDIATELY (works offline)
+            // Step 2: If online, snap full route + save to server
+            // ══════════════════════════════════════════════
 
-            if (routePoints.length === 0) {
+            const cleanPoints = rawPoints
+                .filter(p => p && p.lat && p.lon && !p.event)
+                .map(p => ({
+                    lat: parseFloat(p.lat),
+                    lon: parseFloat(p.lon)
+                }));
+
+            if (cleanPoints.length === 0) {
                 alert('No route points recorded.');
                 return;
             }
@@ -1454,31 +2273,81 @@
                 }
             }
 
-            // Save road-snapped route to backend
-            const csrf = getValidCsrfToken();
-            if (!csrf) {
-                alert('Security token missing. Please refresh.');
-                return;
+            // Step 1 — Try to snap BEFORE saving to IndexedDB
+            let snappedForOffline = [];
+            if (navigator.onLine && cleanPoints.length > 0) {
+                showGpsToast('🔄 Snapping to road...');
+                try {
+                    snappedForOffline = await snapFullRoute(cleanPoints);
+                } catch (e) {
+                    console.warn('Pre-snap failed, saving raw only:', e.message);
+                }
             }
 
+            // Save raw + snapped to IndexedDB IMMEDIATELY (works even in airplane mode)
             try {
-                const res = await fetch('/save_route/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRFToken': csrf
-                    },
-                    body: JSON.stringify({ points: routePoints })
+                await OfflineDB.saveRoute({
+                    points: cleanPoints,
+                    snapped: snappedForOffline.length > 0
+                        ? snappedForOffline.filter(p => p.lat && p.lon)
+                        : null,
+                    distance_meters: safeDistance,
+                    duration_seconds: tripDurationSeconds,
+                    created_at: new Date().toISOString()
                 });
-                if (!handleResponseAuth(res)) return;
-                if (res.ok) {
-                    console.log('Route saved successfully');
-                } else {
-                    const err = await res.json();
-                    alert('Save failed: ' + (err.message || err.error));
+                showGpsToast('📍 Route saved locally!');
+            } catch (dbErr) {
+                console.error('Local save failed:', dbErr);
+            }
+
+            // Step 2 — If online, save snapped route to server (reuse already-snapped data)
+            const finalPoints = snappedForOffline.length > 0 ? snappedForOffline : cleanPoints;
+
+            if (navigator.onLine && finalPoints.length > 0) {
+                try {
+                    // Redraw with snapped points (the pretty road-centered line)
+                    if (snappedPolyline) {
+                        snappedPolyline.setPath(
+                            finalPoints.map(p => ({ lat: parseFloat(p.lat), lng: parseFloat(p.lon) }))
+                        );
+                    }
+
+                    // Save snapped route to server
+                    const csrf = getValidCsrfToken();
+                    if (csrf) {
+                        const res = await fetch('/save_route/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrf
+                            },
+                            body: JSON.stringify({
+                                points: finalPoints.filter(p => p.lat && p.lon),
+                                distance_meters: safeDistance,
+                                duration_seconds: tripDurationSeconds
+                            })
+                        });
+                        if (!handleResponseAuth(res)) return;
+
+                        if (res.ok) {
+                            showGpsToast('✅ Route saved to cloud!');
+                            // Delete the local copy since server has the snapped version
+                            try {
+                                const localRoutes = await OfflineDB.getAllRoutes();
+                                if (localRoutes.length > 0) {
+                                    await OfflineDB.deleteRoute(localRoutes[localRoutes.length - 1].id);
+                                }
+                            } catch (e) { /* ignore cleanup error */ }
+                        } else {
+                            showGpsToast('⚠️ Cloud save failed — kept locally');
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Post-tracking save failed:', e.message);
+                    showGpsToast('📡 Save failed — route saved locally');
                 }
-            } catch (e) {
-                console.error('Save error:', e);
+            } else {
+                showGpsToast('📡 Offline — route saved locally. Sync when online.');
             }
         }
 
@@ -1522,10 +2391,16 @@
               Points: <span>${route.total_points}</span>
             </div>
           </div>
-          <button class="btn-view-route"
-            onclick="loadHistoryRoute(${JSON.stringify(route).replace(/"/g, '&quot;')})">
-            View on Map
-          </button>
+          <div class="history-route-actions">
+            <button class="btn-view-route"
+              onclick="loadHistoryRoute(${JSON.stringify(route).replace(/"/g, '&quot;')})">
+              View on Map
+            </button>
+            <button class="btn-delete-route"
+              onclick="deleteRoute(${route.id})">
+              Delete
+            </button>
+          </div>
         `;
                     list.appendChild(card);
                 });
@@ -1550,6 +2425,28 @@
 
         function closeHistoryModal() {
             document.getElementById('history-modal').style.display = 'none';
+        }
+
+        async function deleteRoute(routeId) {
+            if (!confirm('Are you sure you want to delete this route?')) return;
+            try {
+                const csrf = getValidCsrfToken();
+                if (!csrf) {
+                    alert('Security token missing.');
+                    return;
+                }
+                const res = await fetch(`/delete_route/${routeId}/`, {
+                    method: 'DELETE',
+                    headers: { 'X-CSRFToken': csrf }
+                });
+                if (res.ok) {
+                    viewHistory(historyPage);
+                } else {
+                    alert('Failed to delete route.');
+                }
+            } catch (e) {
+                console.error('Delete error:', e);
+            }
         }
 
         function loadHistoryRoute(routeData) {
@@ -1700,6 +2597,150 @@
         }
 
         // ══════════════════════════════════════════════
+        // PART 9.5 — Offline Route Syncing
+        // ══════════════════════════════════════════════
+
+        async function viewOfflineRoutes() {
+            try {
+                const routes = await OfflineDB.getAllRoutes();
+                const list = document.getElementById('offline-list');
+                list.innerHTML = '';
+
+                if (routes.length === 0) {
+                    list.innerHTML = '<p style="color:var(--text-secondary);text-align:center;padding:20px;">No offline routes pending sync.</p>';
+                    document.getElementById('sync-all-btn').style.display = 'none';
+                } else {
+                    document.getElementById('sync-all-btn').style.display = 'block';
+                    routes.forEach(route => {
+                        const card = document.createElement('div');
+                        card.className = 'history-route-card';
+                        card.innerHTML = `
+                            <div class="history-route-title">
+                                Offline Route — ${new Date(route.created_at).toLocaleString()}
+                            </div>
+                            <div class="history-route-stats">
+                                <div class="history-stat">
+                                    Distance: <span>${formatDistance(route.distance_meters || 0)}</span>
+                                </div>
+                                <div class="history-stat">
+                                    Points: <span>${route.points.length}</span>
+                                </div>
+                                <div class="history-stat" style="color:#FFA500">
+                                    Status: <span>Pending Sync</span>
+                                </div>
+                            </div>
+                        `;
+                        list.appendChild(card);
+                    });
+                }
+                document.getElementById('offline-modal').style.display = 'flex';
+            } catch (e) {
+                console.error('Error viewing offline routes:', e);
+            }
+        }
+
+        function closeOfflineModal() {
+            document.getElementById('offline-modal').style.display = 'none';
+        }
+
+        async function syncOfflineRoutes() {
+            if (!navigator.onLine) {
+                alert("You are still offline. Please connect to the internet first.");
+                return;
+            }
+
+            const btn = document.getElementById('sync-all-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'Syncing...';
+            btn.disabled = true;
+
+            try {
+                const routes = await OfflineDB.getAllRoutes();
+                const csrf = getValidCsrfToken();
+
+                let successCount = 0;
+
+                for (const route of routes) {
+                    try {
+                        // Use already-snapped points if available
+                        // Otherwise snap now — never send raw to server
+                        let finalPoints = null;
+
+                        if (route.snapped && route.snapped.length > 0) {
+                            // Already snapped during stop tracking ✅
+                            finalPoints = route.snapped;
+                            console.log(`Route ${route.id}: using pre-snapped points`);
+                        } else {
+                            // Not snapped yet — snap now
+                            btn.innerHTML = 'Snapping & Syncing...';
+                            showGpsToast('🛰️ Snapping route to road...');
+                            try {
+                                const cleanForSnap = route.points
+                                    .filter(p => p && p.lat && p.lon)
+                                    .map(p => ({
+                                        lat: parseFloat(p.lat),
+                                        lon: parseFloat(p.lon)
+                                    }));
+                                const snapped = await snapFullRoute(cleanForSnap);
+                                if (snapped && snapped.length > 0) {
+                                    finalPoints = snapped;
+                                    console.log(`Route ${route.id}: snapped successfully`);
+                                } else {
+                                    // Snap returned empty — keep pending
+                                    console.warn(`Route ${route.id}: snap returned empty, skipping`);
+                                    continue;
+                                }
+                            } catch (snapErr) {
+                                // Snap failed — keep pending, try next sync
+                                console.warn(`Route ${route.id}: snap failed, keeping pending:`, snapErr.message);
+                                continue;
+                            }
+                        }
+
+                        // Send snapped points to server
+                        const res = await fetch('/save_route/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRFToken': csrf
+                            },
+                            body: JSON.stringify({
+                                points: finalPoints.filter(p => p.lat && p.lon),
+                                distance_meters: route.distance_meters || 0,
+                                duration_seconds: route.duration_seconds || 0
+                            })
+                        });
+
+                        if (res.ok) {
+                            await OfflineDB.deleteRoute(route.id);
+                            successCount++;
+                        }
+                    } catch (routeErr) {
+                        console.warn(`Route ${route.id} sync error:`, routeErr.message);
+                        continue; // skip this route, try next
+                    }
+                }
+
+                if (successCount === routes.length) {
+                    showGpsToast(`✅ Successfully synced ${successCount} routes!`);
+                } else if (successCount > 0) {
+                    alert(`Partial sync: ${successCount}/${routes.length} paths saved.`);
+                } else {
+                    alert("Failed to sync routes. Server might be down.");
+                }
+
+                viewOfflineRoutes(); // refresh modal
+
+            } catch (e) {
+                console.error("Sync error:", e);
+                alert("Error while syncing: " + e.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        // ══════════════════════════════════════════════
         // PART 10 — Button Event Bindings
         // ══════════════════════════════════════════════
 
@@ -1707,12 +2748,14 @@
             const startBtn = document.getElementById('start-btn');
             const stopBtn = document.getElementById('stop-btn');
             const historyBtn = document.getElementById('history-btn');
+            const offlineBtn = document.getElementById('offline-btn');
 
             if (startBtn) startBtn.addEventListener('click', startTracking);
             if (stopBtn) stopBtn.addEventListener('click', stopTracking);
             if (historyBtn) historyBtn.addEventListener(
                 'click', () => viewHistory(1)
             );
+            if (offlineBtn) offlineBtn.addEventListener('click', viewOfflineRoutes);
         });
     </script>
 
@@ -1772,62 +2815,318 @@
             </div>
         </div>
 
-        <!-- Control Buttons -->
+        <!-- Control Buttons — Redesigned Layout -->
         <div class="controls">
-            <button id="start-btn" class="btn btn-start">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="5,3 19,12 5,21" />
-                </svg>
-                Start Tracking
-            </button>
-            <button id="stop-btn" class="btn btn-stop">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="3" y="3" width="18" height="18" rx="2" />
-                </svg>
-                Stop Tracking
-            </button>
-            <button id="history-btn" class="btn btn-outline">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12,6 12,12 16,14" />
-                </svg>
-                Route History
-            </button>
-            <button id="offline-btn" class="btn btn-outline">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                    <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
-                    <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
-                </svg>
-                Offline Routes
-            </button>
+
+            <!-- Row 1: Speed widget + Stop badge -->
+            <div class="controls-top-row">
+                <!-- Speed indicator widget -->
+                <div id="speed-display" style="
+                    display: inline-flex;
+                    flex-direction: column;
+                    align-items: center;
+                    position: relative;
+                    width: 80px;
+                    flex-shrink: 0;
+                ">
+                    <svg width="80" height="80" viewBox="0 0 80 80">
+                        <circle cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="6" />
+                        <circle id="speed-ring" cx="40" cy="40" r="32" fill="none" stroke="rgba(255,255,255,0.15)"
+                            stroke-width="6" stroke-linecap="round" stroke-dasharray="201" stroke-dashoffset="201"
+                            transform="rotate(-90 40 40)" style="transition: stroke-dashoffset 0.6s cubic-bezier(0.4,0,0.2,1),
+                                              stroke 0.4s ease;" />
+                    </svg>
+                    <div style="position:absolute;top:50%;left:50%;
+                                transform:translate(-50%,-50%);
+                                text-align:center;line-height:1.1;">
+                        <span id="speed-value" style="
+                            font-size: 22px;
+                            font-weight: 600;
+                            color: #9E9E9E;
+                            transition: color 0.3s ease;
+                        ">0</span>
+                        <br>
+                        <span id="speed-unit" style="
+                            font-size: 10px;
+                            color: #9E9E9E;
+                            transition: color 0.3s ease;
+                        ">km/h</span>
+                    </div>
+                </div>
+
+                <!-- Stop indicator badge -->
+                <div id="stop-indicator" style="
+                    display: none;
+                    align-items: center;
+                    gap: 8px;
+                    background: rgba(255, 109, 0, 0.12);
+                    border: 1px solid #FF6D00;
+                    border-radius: 20px;
+                    padding: 6px 14px;
+                    font-size: 13px;
+                    color: #FF6D00;
+                    font-weight: 500;
+                ">
+                    <span class="stop-dot" style="
+                        width: 8px; height: 8px;
+                        background: #FF6D00;
+                        border-radius: 50%;
+                        display: inline-block;
+                        animation: pulse-stop 1s infinite;
+                    "></span>
+                    Stopped
+                </div>
+            </div>
+
+            <!-- Row 2: Start + Stop (primary actions) -->
+            <div class="controls-primary-row">
+                <button id="start-btn" class="btn btn-start">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5,3 19,12 5,21" />
+                    </svg>
+                    Start Tracking
+                </button>
+                <button id="stop-btn" class="btn btn-stop active" disabled>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                    </svg>
+                    Stop Tracking
+                </button>
+            </div>
+
+            <!-- Row 3: History + Offline (secondary actions) -->
+            <div class="controls-secondary-row">
+                <button id="history-btn" class="btn btn-outline">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12,6 12,12 16,14" />
+                    </svg>
+                    Route History
+                </button>
+                <button id="offline-btn" class="btn btn-outline">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                        <path d="M16.72 11.06A10.94 10.94 0 0119 12.55" />
+                        <path d="M5 12.55a10.94 10.94 0 015.17-2.39" />
+                    </svg>
+                    Offline Routes
+                </button>
+            </div>
+
         </div>
 
-        <button id="mini-map-btn">Mini Map</button>
+        <!-- Mini Map toggle removed -->
+
+        <style>
+            @keyframes overspeed-flash {
+
+                0%,
+                100% {
+                    opacity: 1;
+                }
+
+                50% {
+                    opacity: 0.5;
+                }
+            }
+
+            @keyframes pulse-stop {
+
+                0%,
+                100% {
+                    opacity: 1;
+                    transform: scale(1);
+                }
+
+                50% {
+                    opacity: 0.4;
+                    transform: scale(1.3);
+                }
+            }
+
+            /* ══════════════════════════════════════════
+               PERMISSION MODAL — Premium Dark UI
+            ══════════════════════════════════════════ */
+            .perm-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0, 0, 0, 0.85);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                z-index: 5000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+                animation: permFadeIn 0.35s var(--fluid);
+            }
+
+            @keyframes permFadeIn {
+                from {
+                    opacity: 0;
+                }
+
+                to {
+                    opacity: 1;
+                }
+            }
+
+            .perm-card {
+                background: var(--surface-1);
+                border: 1px solid var(--border-mid);
+                border-radius: var(--r-xl);
+                max-width: 380px;
+                width: 100%;
+                padding: 36px 28px 28px;
+                text-align: center;
+                box-shadow:
+                    0 40px 100px rgba(0, 0, 0, 0.7),
+                    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+                animation: permCardSlide 0.4s var(--spring);
+            }
+
+            @keyframes permCardSlide {
+                from {
+                    opacity: 0;
+                    transform: translateY(30px) scale(0.95);
+                }
+
+                to {
+                    opacity: 1;
+                    transform: translateY(0) scale(1);
+                }
+            }
+
+            .perm-icon {
+                width: 72px;
+                height: 72px;
+                border-radius: 50%;
+                background: linear-gradient(145deg, rgba(10, 132, 255, 0.2), rgba(10, 132, 255, 0.05));
+                border: 1px solid rgba(10, 132, 255, 0.3);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                margin: 0 auto 20px;
+                font-size: 32px;
+            }
+
+            .perm-title {
+                font-family: var(--font-body);
+                font-size: 20px;
+                font-weight: 700;
+                color: var(--txt-1);
+                margin-bottom: 10px;
+                letter-spacing: -0.02em;
+            }
+
+            .perm-desc {
+                font-size: 14px;
+                color: var(--txt-2);
+                line-height: 1.5;
+                margin-bottom: 24px;
+            }
+
+            .perm-features {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                margin-bottom: 28px;
+                text-align: left;
+            }
+
+            .perm-feature {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                font-size: 13px;
+                color: var(--txt-2);
+                padding: 10px 14px;
+                background: var(--surface-2);
+                border-radius: var(--r-sm);
+                border: 1px solid var(--border-dim);
+            }
+
+            .perm-feature-icon {
+                font-size: 18px;
+                flex-shrink: 0;
+            }
+
+            .perm-btn-allow {
+                width: 100%;
+                padding: 15px;
+                border-radius: var(--r-md);
+                border: none;
+                background: linear-gradient(160deg, #1a8eff 0%, var(--blue) 45%, var(--blue-mid) 100%);
+                color: white;
+                font-family: var(--font-body);
+                font-size: 15px;
+                font-weight: 600;
+                cursor: pointer;
+                box-shadow: 0 8px 32px rgba(10, 132, 255, 0.35);
+                transition: transform 0.2s var(--spring), box-shadow 0.2s;
+                margin-bottom: 12px;
+            }
+
+            .perm-btn-allow:active {
+                transform: scale(0.96);
+            }
+
+            .perm-btn-skip {
+                width: 100%;
+                padding: 12px;
+                border-radius: var(--r-md);
+                border: 1px solid var(--border-dim);
+                background: transparent;
+                color: var(--txt-3);
+                font-family: var(--font-body);
+                font-size: 13px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: color 0.2s, border-color 0.2s;
+            }
+
+            .perm-btn-skip:hover {
+                color: var(--txt-2);
+                border-color: var(--border-mid);
+            }
+
+            /* Denied Modal */
+            .perm-denied-steps {
+                text-align: left;
+                margin: 16px 0 24px;
+            }
+
+            .perm-step {
+                display: flex;
+                align-items: flex-start;
+                gap: 12px;
+                padding: 8px 0;
+                font-size: 13px;
+                color: var(--txt-2);
+                line-height: 1.5;
+            }
+
+            .perm-step-num {
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: var(--surface-3);
+                border: 1px solid var(--border-mid);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                font-weight: 600;
+                color: var(--blue);
+                flex-shrink: 0;
+            }
+        </style>
 
         <div class="map-wrapper">
             <div id="map"></div>
         </div>
 
-        <div id="mini-map">
-            <div id="mini-map-container"></div>
-        </div>
-
         <!-- Route summary card injected here dynamically -->
-
-        <!-- Turn by Turn Instructions -->
-        <div class="instructions-card">
-            <div class="instructions-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4285F4" stroke-width="2"
-                    style="margin-right:8px;vertical-align:middle">
-                    <polygon points="3,11 22,2 13,21 11,13" />
-                </svg>
-                Turn-by-Turn Instructions
-            </div>
-            <div class="instructions-body" id="instructions-body">
-                Start tracking to see route instructions.
-            </div>
-        </div>
     </div>
 
     <!-- History Modal -->
@@ -1846,6 +3145,103 @@
             <div id="history-list"></div>
         </div>
     </div>
+
+    <!-- Offline Sync Modal -->
+    <div id="offline-modal" class="perm-overlay" style="display:none; align-items: flex-start; padding-top: 60px;">
+        <div class="perm-card" style="max-width: 600px; text-align: left; background: var(--surface-1);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="font-size:18px; font-weight:700; color:var(--txt-1); margin:0;">Offline Routes</h2>
+                <button onclick="closeOfflineModal()"
+                    style="background:transparent; border:none; color:var(--text-secondary); font-size:20px; cursor:pointer; padding:0;">✕</button>
+            </div>
+            <p style="font-size: 13px; color: var(--txt-2); margin-top: -10px; margin-bottom: 20px;">
+                Routes safely saved to your device while tracking offline. Connect to the internet and sync them back to
+                the cloud.
+            </p>
+            <div id="offline-list" style="max-height: 50vh; overflow-y: auto; margin-bottom: 20px;"></div>
+
+            <button id="sync-all-btn" class="perm-btn-allow" onclick="syncOfflineRoutes()"
+                style="display: none; background: linear-gradient(160deg, #30D158 0%, #28A745 100%); box-shadow: 0 8px 32px rgba(48, 209, 88, 0.35);">
+                <span class="perm-feature-icon" style="margin-right: 8px;">☁️</span> Sync All to Cloud
+            </button>
+        </div>
+    </div>
+
+    <!-- Permission Request Modal -->
+    <div id="permission-modal" class="perm-overlay" style="display:none;">
+        <div class="perm-card">
+            <div class="perm-icon">&#x1F4CD;</div>
+            <h2 class="perm-title">Enable Location Access</h2>
+            <p class="perm-desc">
+                Routehawk needs access to your location to track your route
+                accurately &#8212; even when the screen is locked.
+            </p>
+            <div class="perm-features">
+                <div class="perm-feature">
+                    <span class="perm-feature-icon">&#x1F5FA;&#xFE0F;</span>
+                    <span>Real-time route tracking on the map</span>
+                </div>
+                <div class="perm-feature">
+                    <span class="perm-feature-icon">&#x1F512;</span>
+                    <span>Background tracking when screen is off</span>
+                </div>
+                <div class="perm-feature">
+                    <span class="perm-feature-icon">&#x1F4CA;</span>
+                    <span>Accurate distance &amp; speed stats</span>
+                </div>
+            </div>
+            <p
+                style="margin-top: -12px; margin-bottom: 24px; font-size: 13px; color: var(--txt-2); line-height: 1.4; text-align: left; background: rgba(255,165,0,0.1); padding: 10px; border-radius: var(--r-sm); border: 1px solid rgba(255,165,0,0.3);">
+                <strong style="color: #FFA500;">Note:</strong> Please ensure your phone's main <strong>Location
+                    Services</strong> (GPS) toggle is turned ON. Tracking will not start if device location is disabled.
+            </p>
+            <button class="perm-btn-allow" onclick="onPermissionAccepted()">
+                Enable Location
+            </button>
+            <button class="perm-btn-skip" onclick="onPermissionSkipped()">
+                Not Now
+            </button>
+        </div>
+    </div>
+
+    <!-- Permission Denied Modal -->
+    <div id="permission-denied-modal" class="perm-overlay" style="display:none;">
+        <div class="perm-card">
+            <div class="perm-icon"
+                style="background: linear-gradient(145deg, rgba(255,69,58,0.2), rgba(255,69,58,0.05)); border-color: rgba(255,69,58,0.3);">
+                &#x1F6AB;</div>
+            <h2 class="perm-title">Location Permission Required</h2>
+            <p class="perm-desc">
+                Routehawk cannot track your route without location access.
+                Please enable it in your phone settings:
+            </p>
+            <div class="perm-denied-steps">
+                <div class="perm-step">
+                    <span class="perm-step-num">1</span>
+                    <span>Open your phone's <strong style="color:var(--txt-1)">Settings</strong></span>
+                </div>
+                <div class="perm-step">
+                    <span class="perm-step-num">2</span>
+                    <span>Go to <strong style="color:var(--txt-1)">Apps &#8594; Routehawk &#8594;
+                            Permissions</strong></span>
+                </div>
+                <div class="perm-step">
+                    <span class="perm-step-num">3</span>
+                    <span>Tap <strong style="color:var(--txt-1)">Location</strong> &#8594; select <strong
+                            style="color:var(--blue)">Allow all the time</strong></span>
+                </div>
+                <div class="perm-step">
+                    <span class="perm-step-num">4</span>
+                    <span>Return to Routehawk and tap <strong style="color:var(--txt-1)">Start Tracking</strong>
+                        again</span>
+                </div>
+            </div>
+            <button class="perm-btn-allow" onclick="closePermissionDeniedModal()">
+                Open Settings &#8594;
+            </button>
+        </div>
+    </div>
+
 </body>
 
 </html>

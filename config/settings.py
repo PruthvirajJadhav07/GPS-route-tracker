@@ -29,15 +29,15 @@ DEBUG = True
 ALLOWED_HOSTS = ["*"]
 
 CSRF_TRUSTED_ORIGINS = [
-'http://localhost:8000',
-      'http://127.0.0.1:8000',
-      'https://*.ngrok-free.app',
-      'https://*.ngrok-free.dev',
-      'https://*.ngrok.io',
-      'https://*.ngrok-free.dev',
-      # Add your exact current ngrok URL as well
-      # for guaranteed matching:
-      'https://subrectangular-unsoberly-carmella.ngrok-free.dev',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+    'https://*.ngrok-free.app',
+    'https://*.ngrok-free.dev',
+    'https://*.ngrok.io',
+    'https://*.railway.app',      # if deploying on Railway
+    'https://*.render.com',       # if deploying on Render
+    # Add your exact ngrok / production URL below:
+    'https://subrectangular-unsoberly-carmella.ngrok-free.dev',
 ]
 
 CSRF_COOKIE_HTTPONLY = False
@@ -50,6 +50,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'corsheaders',
     'tracker',
     'users',
     'admin_panel',
@@ -57,6 +59,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -64,6 +67,16 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+# Allow specific trusted domains to embed your tracker via iframe
+X_FRAME_OPTIONS = 'ALLOWALL'
+
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'ngrok-skip-browser-warning',
 ]
 
 ROOT_URLCONF = 'config.urls'

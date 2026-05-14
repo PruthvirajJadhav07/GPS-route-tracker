@@ -508,10 +508,9 @@
         </div>
       </div>
       <div class="stat-card red">
-        <div class="stat-label">Stop Detection</div>
-        <div class="stat-value red" style="font-size:16px;
-             padding-top:6px; color:var(--text-dim);">
-          Coming Soon
+        <div class="stat-label">Stops Today</div>
+        <div class="stat-value red">
+          {{ today_stops }}
         </div>
       </div>
     </div>
@@ -552,6 +551,7 @@
             <th>Total Distance</th>
             <th>Today's Distance</th>
             <th>Last Active</th>
+            <th>Violations</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -609,6 +609,15 @@
               <span class="no-activity">
                 Never tracked
               </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.mock_violations > 0 %}
+              <span class="badge badge-red" style="background:var(--danger-dim); color:var(--danger);">
+                {{ item.mock_violations }} detected
+              </span>
+              {% else %}
+              <span class="badge badge-muted">Clean</span>
               {% endif %}
             </td>
             <td>

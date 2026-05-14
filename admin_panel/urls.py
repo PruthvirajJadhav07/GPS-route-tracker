@@ -29,6 +29,9 @@ urlpatterns = [
     path('api/user/<int:user_id>/graph/',
          views.api_user_graph_data,
          name='api_user_graph_data'),
+    path('api/user/<int:user_id>/mock-violations/',
+         views.api_mock_violations,
+         name='api_mock_violations'),
 ]
 
 # Only expose debug endpoint in development
