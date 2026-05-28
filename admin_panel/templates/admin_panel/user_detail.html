@@ -115,7 +115,7 @@
     }
 
     .chip.active {
-      background: rgba(66,133,244,0.15);
+      background: rgba(66, 133, 244, 0.15);
       border-color: var(--primary);
       color: var(--primary);
     }
@@ -263,7 +263,9 @@
     }
 
     @keyframes spin {
-      to { transform: rotate(360deg); }
+      to {
+        transform: rotate(360deg);
+      }
     }
 
     .graph-empty {
@@ -698,6 +700,15 @@
         </div>
       </div>
 
+      <a href="/superadmin/user/{{ target_user.id }}/export_csv/" class="btn-flyover" style="margin-top: 0; background: linear-gradient(135deg, rgba(52, 168, 83, 0.2) 0%, rgba(52, 168, 83, 0.05) 100%); border-color: var(--success); text-decoration: none;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download CSV Report
+      </a>
+
       <!-- Mini Stats -->
       <div class="user-stats-grid">
         <div class="mini-stat">
@@ -726,7 +737,7 @@
       <div class="filter-panel">
         <div class="filter-panel-title">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46"/>
+            <polygon points="22,3 2,3 10,12.46 10,19 14,21 14,12.46" />
           </svg>
           Filter & Analytics
         </div>
@@ -748,10 +759,14 @@
           <label class="filter-label">Profile</label>
           <div class="filter-chips">
             <button class="chip active" data-profile="all" onclick="setGraphProfile('all',this)">All</button>
-            <button class="chip" data-profile="walking" onclick="setGraphProfile('walking',this)" style="--chip-color:#00E5FF">🚶 Walk</button>
-            <button class="chip" data-profile="cycling" onclick="setGraphProfile('cycling',this)" style="--chip-color:#FBBC05">🚴 Cycle</button>
-            <button class="chip" data-profile="motorcycle" onclick="setGraphProfile('motorcycle',this)" style="--chip-color:#FF6D00">🏍️ Moto</button>
-            <button class="chip" data-profile="car" onclick="setGraphProfile('car',this)" style="--chip-color:#4285F4">🚗 Car</button>
+            <button class="chip" data-profile="walking" onclick="setGraphProfile('walking',this)"
+              style="--chip-color:#00E5FF">🚶 Walk</button>
+            <button class="chip" data-profile="cycling" onclick="setGraphProfile('cycling',this)"
+              style="--chip-color:#FBBC05">🚴 Cycle</button>
+            <button class="chip" data-profile="motorcycle" onclick="setGraphProfile('motorcycle',this)"
+              style="--chip-color:#FF6D00">🏍️ Moto</button>
+            <button class="chip" data-profile="car" onclick="setGraphProfile('car',this)"
+              style="--chip-color:#4285F4">🚗 Car</button>
           </div>
         </div>
 
@@ -759,9 +774,11 @@
         <div class="filter-group">
           <label class="filter-label">Show</label>
           <div class="metric-tabs">
-            <button class="metric-tab active" data-metric="distance" onclick="setMetric('distance',this)">Distance (km)</button>
+            <button class="metric-tab active" data-metric="distance" onclick="setMetric('distance',this)">Distance
+              (km)</button>
             <button class="metric-tab" data-metric="routes" onclick="setMetric('routes',this)">Routes</button>
-            <button class="metric-tab" data-metric="duration" onclick="setMetric('duration',this)">Duration (min)</button>
+            <button class="metric-tab" data-metric="duration" onclick="setMetric('duration',this)">Duration
+              (min)</button>
           </div>
         </div>
 
@@ -814,18 +831,22 @@
 
       <!-- ── SECURITY VIOLATIONS (FAKE GPS) ──────── -->
       {% if mock_violations > 0 %}
-      <div style="background:var(--danger-dim); border:1px solid var(--danger); border-radius:var(--radius); padding:16px; margin-top:10px;">
-        <div style="color:var(--danger); font-size:14px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+      <div
+        style="background:var(--danger-dim); border:1px solid var(--danger); border-radius:var(--radius); padding:16px; margin-top:10px;">
+        <div
+          style="color:var(--danger); font-size:14px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
           FAKE GPS DETECTED ({{ mock_violations }} times)
         </div>
-        <div style="display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto; padding-right:4px;">
+        <div
+          style="display:flex; flex-direction:column; gap:8px; max-height:200px; overflow-y:auto; padding-right:4px;">
           {% for v in mock_violation_list %}
-          <div style="background:var(--bg-card); padding:10px; border-radius:6px; font-size:12px; border:1px solid rgba(234, 67, 53, 0.3);">
+          <div
+            style="background:var(--bg-card); padding:10px; border-radius:6px; font-size:12px; border:1px solid rgba(234, 67, 53, 0.3);">
             <div style="font-weight:700; color:var(--text); margin-bottom:4px;">{{ v.date }} at {{ v.time }}</div>
             <div style="color:var(--text-muted); font-family:var(--mono); font-size:11px;">
               Lat: {{ v.lat }}<br>
@@ -935,7 +956,7 @@
           center: { lat: 16.7050, lng: 74.2433 },
           zoom: 13,
           mapTypeId: 'roadmap',
-          mapId: 'YOUR_ACTUAL_MAP_ID_HERE',
+          mapId: 'ccc969268e0e36ac25644845',
           styles: ADMIN_DARK_STYLE,
           zoomControl: true,
           mapTypeControl: true,
@@ -945,7 +966,7 @@
             mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain']
           },
           scaleControl: true,
-          streetViewControl: false,
+          streetViewControl: true,
           rotateControl: true,
           fullscreenControl: true,
         });
@@ -1394,8 +1415,8 @@
       activeStopMarkers.forEach(m => {
         if (m.infoWindow) m.infoWindow.close();
         if (m.marker) {
-          try { m.marker.map = null; } catch(e) {
-            try { m.marker.setMap(null); } catch(e2) {}
+          try { m.marker.map = null; } catch (e) {
+            try { m.marker.setMap(null); } catch (e2) { }
           }
         }
       });
@@ -1450,7 +1471,7 @@
             content: labelDiv,
             zIndex: 15
           });
-        } catch(e) {
+        } catch (e) {
           // Fallback to classic Marker
           marker = new google.maps.Marker({
             position: position,
@@ -1488,8 +1509,12 @@
           <div style="font-size:13px; margin-bottom:4px;">
             <strong>Duration:</strong> ${durationText}
           </div>
-          <div style="font-size:12px; color:#555;" id="stop-area-${idx}">
+          <div style="font-size:12px; color:#555; margin-bottom: 8px;" id="stop-area-${idx}">
             📍 Loading area...
+          </div>
+          <!-- ── Virtual Audit: Street View Container ── -->
+          <div id="pano-${idx}" style="width: 200px; height: 120px; border-radius: 6px; background: #eee; display: flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid #ccc;">
+            <span style="font-size:11px; color:#666;">Loading Street View...</span>
           </div>
         `;
 
@@ -1497,11 +1522,39 @@
           content: infoContent,
         });
 
-        // Click handler to open InfoWindow
-        const openInfo = () => infoWindow.open(adminMap, marker.position ? undefined : marker);
+        // Click handler to open InfoWindow and trigger Street View
+        const openInfo = () => {
+          infoWindow.open(adminMap, marker.position ? undefined : marker);
+
+          // Wait for InfoWindow to be attached to the DOM
+          google.maps.event.addListenerOnce(infoWindow, 'domready', () => {
+            const panoDiv = document.getElementById(`pano-${idx}`);
+            if (!panoDiv) return;
+
+            const svService = new google.maps.StreetViewService();
+            svService.getPanorama({ location: position, radius: 50 }, (data, status) => {
+              if (status === 'OK') {
+                panoDiv.innerHTML = ''; // Clear loading text
+                new google.maps.StreetViewPanorama(panoDiv, {
+                  position: data.location.latLng,
+                  pov: { heading: 165, pitch: 0 },
+                  zoom: 1,
+                  addressControl: false,
+                  linksControl: false,
+                  panControl: false,
+                  enableCloseButton: false,
+                  showRoadLabels: false
+                });
+              } else {
+                panoDiv.innerHTML = '<span style="font-size:11px; color:#666;">No Street View available</span>';
+              }
+            });
+          });
+        };
+
         try {
           marker.addEventListener('click', openInfo);
-        } catch(e) {
+        } catch (e) {
           google.maps.event.addListener(marker, 'click', openInfo);
         }
 
@@ -1639,10 +1692,10 @@
     }
 
     // ── Graph State ───────────────────────────────
-    const USER_ID      = "{{ target_user.id }}";
-    let   graphChart   = null;
-    let   activeMetric  = 'distance';
-    let   activeProfile = 'all';
+    const USER_ID = "{{ target_user.id }}";
+    let graphChart = null;
+    let activeMetric = 'distance';
+    let activeProfile = 'all';
 
     // ── Filter Helper Functions ───────────────────
     function setGraphProfile(profile, btn) {
@@ -1659,7 +1712,7 @@
 
     function setQuickRange(days) {
       const today = new Date();
-      const from  = new Date();
+      const from = new Date();
       from.setDate(today.getDate() - (days - 1));
       document.getElementById('filter-to').value = today.toISOString().split('T')[0];
       document.getElementById('filter-from').value = from.toISOString().split('T')[0];
@@ -1671,20 +1724,20 @@
     function getMetricLabel(metric) {
       const labels = {
         distance: 'Distance (km)',
-        routes:   'Routes',
+        routes: 'Routes',
         duration: 'Duration (min)',
-        points:   'GPS Points',
+        points: 'GPS Points',
       };
       return labels[metric] || metric;
     }
 
     function getMetricColor(profile) {
       const colors = {
-        walking:    '#34A853',
-        cycling:    '#FBBC05',
+        walking: '#34A853',
+        cycling: '#FBBC05',
         motorcycle: '#FF6D00',
-        car:        '#4285F4',
-        all:        '#4285F4',
+        car: '#4285F4',
+        all: '#4285F4',
       };
       return colors[profile] || '#4285F4';
     }
@@ -1695,7 +1748,7 @@
       const toEl = document.getElementById('filter-to');
       const params = new URLSearchParams({ metric: activeMetric, profile: activeProfile });
       if (fromEl.value) params.append('from', fromEl.value);
-      if (toEl.value)   params.append('to',   toEl.value);
+      if (toEl.value) params.append('to', toEl.value);
 
       document.getElementById('graph-loading').style.display = 'flex';
       document.getElementById('route-graph').style.display = 'none';
@@ -1788,7 +1841,7 @@
         document.getElementById('gs-duration').textContent = s.total_duration;
         document.getElementById('gs-active').textContent = s.active_days + ' / ' + s.total_days + 'd';
 
-      } catch(e) {
+      } catch (e) {
         console.error('loadGraphData error:', e);
         document.getElementById('graph-loading').style.display = 'none';
         document.getElementById('graph-empty').style.display = 'block';
@@ -1801,7 +1854,7 @@
       renderRouteCards();
 
       const today = new Date();
-      const from  = new Date();
+      const from = new Date();
       from.setDate(today.getDate() - 29);
       document.getElementById('filter-to').value = today.toISOString().split('T')[0];
       document.getElementById('filter-from').value = from.toISOString().split('T')[0];
@@ -1818,7 +1871,7 @@
       if (flyoverAnimationId) cancelAnimationFrame(flyoverAnimationId);
       const btn = document.getElementById('btn-flyover');
       if (btn) btn.innerHTML = '▶ Play 3D Flyover';
-      
+
       // Cleanup dynamically drawn line and marker
       if (flyoverPolyline) {
         flyoverPolyline.setMap(null);
@@ -1835,7 +1888,7 @@
         adminMap.setHeading(0);
         adminMap.setZoom(15);
       }
-      
+
       // Restore original polyline opacity
       if (activePolyline) {
         activePolyline.setOptions({ strokeOpacity: 0.9 });
@@ -1894,11 +1947,21 @@
 
       let currentIndex = 0;
       let fraction = 0; // 0.0 to 1.0 between currentPoint and nextPoint
-      const speed = 0.015; // Animation speed (percentage of segment per frame)
+      const METERS_PER_FRAME = 0.35; // Constant speed: 0.35m per frame (approx 75km/h for cinematic flyover)
+      
+      let currentDistance = 0;
+      let currentHeading = 0;
+      let spherical = null;
+
+      try {
+        spherical = google.maps.geometry.spherical;
+      } catch(e) {
+        console.warn('Geometry library missing');
+      }
 
       function step() {
         if (!isFlying) return;
-        
+
         if (currentIndex >= path.length - 1) {
           stopFlyover();
           return;
@@ -1907,36 +1970,40 @@
         const currentPoint = path[currentIndex];
         const nextPoint = path[currentIndex + 1];
 
-        // Smooth interpolation using spherical geometry
-        let interpolatedPoint = currentPoint;
-        let heading = adminMap.getHeading() || 0;
-        
-        try {
-          const spherical = google.maps.geometry.spherical;
-          heading = spherical.computeHeading(currentPoint, nextPoint);
-          interpolatedPoint = spherical.interpolate(currentPoint, nextPoint, fraction);
-        } catch(e) {
-          console.warn('Geometry library missing');
-          interpolatedPoint = currentPoint;
+        // Only calculate distance and heading once per segment
+        if (fraction === 0 && spherical) {
+           currentDistance = spherical.computeDistanceBetween(currentPoint, nextPoint);
+           currentHeading = spherical.computeHeading(currentPoint, nextPoint);
         }
 
-        // Animate the camera
+        let speed = 1.0;
+        if (currentDistance > 0) {
+           speed = METERS_PER_FRAME / currentDistance;
+        }
+
+        // Smooth interpolation
+        let interpolatedPoint = currentPoint;
+        if (spherical) {
+          interpolatedPoint = spherical.interpolate(currentPoint, nextPoint, fraction);
+        }
+
+        // Animate the camera smoothly without recalculating heading every frame
         adminMap.moveCamera({
           center: interpolatedPoint,
-          heading: heading,
+          heading: currentHeading || adminMap.getHeading(),
           tilt: 65,
           zoom: 19
         });
-        
+
         // Update marker position
         flyoverMarker.setPosition(interpolatedPoint);
-        
+
         // Update dynamic line
         const currentPath = flyoverPolyline.getPath();
         if (fraction === 0) {
-           currentPath.push(interpolatedPoint);
+          currentPath.push(interpolatedPoint);
         } else {
-           currentPath.setAt(currentPath.getLength() - 1, interpolatedPoint);
+          currentPath.setAt(currentPath.getLength() - 1, interpolatedPoint);
         }
 
         fraction += speed;
@@ -1953,7 +2020,8 @@
       flyoverAnimationId = requestAnimationFrame(step);
     }
   </script>
-  <script src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&libraries=geometry,marker&callback=initMap&loading=async"
+  <script
+    src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&libraries=geometry,marker&callback=initMap&loading=async"
     async defer></script>
 </body>
 

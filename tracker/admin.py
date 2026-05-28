@@ -1,5 +1,9 @@
 from django.contrib import admin
-from .models import RouteLog, LiveHeartbeat
+from .models import RouteLog, LiveHeartbeat, Geofence, GeofenceEvent, SpeedingViolation
+
+admin.site.register(Geofence)
+admin.site.register(GeofenceEvent)
+admin.site.register(SpeedingViolation)
 
 admin.site.register(RouteLog)
 class RouteLogAdmin(admin.ModelAdmin):

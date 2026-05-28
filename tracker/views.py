@@ -599,17 +599,49 @@ def live_heartbeat(request):
         data = json.loads(request.body)
         lat = data.get('lat')
         lon = data.get('lon')
+        speed_ms = data.get('speed', 0.0)
         
         if lat is None or lon is None:
             return JsonResponse({'error': 'Missing lat/lon'}, status=400)
+
+        lat_f = float(lat)
+        lon_f = float(lon)
+        speed_kmh = float(speed_ms) * 3.6 if speed_ms else 0.0
+
+        # Feature: Speeding Violation Detection (Limit: 100 km/h)
+        if speed_kmh > 100.0:
+            from .models import SpeedingViolation
+            SpeedingViolation.objects.create(
+                user=request.user,
+                speed=speed_kmh,
+                latitude=lat_f,
+                longitude=lon_f
+            )
+
+        # Feature: Geofencing
+        from .models import Geofence, GeofenceEvent, UserGeofenceState
+        geofences = Geofence.objects.all()
+        for gf in geofences:
+            dist = haversine(lat_f, lon_f, gf.latitude, gf.longitude)
+            is_inside_now = dist <= gf.radius_meters
+            
+            state, _ = UserGeofenceState.objects.get_or_create(user=request.user, geofence=gf)
+            if is_inside_now and not state.is_inside:
+                GeofenceEvent.objects.create(user=request.user, geofence=gf, action='enter')
+                state.is_inside = True
+                state.save()
+            elif not is_inside_now and state.is_inside:
+                GeofenceEvent.objects.create(user=request.user, geofence=gf, action='exit')
+                state.is_inside = False
+                state.save()
 
         # Update or create the heartbeat row for this user
         hb, created = LiveHeartbeat.objects.update_or_create(
             user=request.user,
             defaults={
-                'lat': float(lat),
-                'lon': float(lon),
-                'speed': data.get('speed', 0.0),
+                'lat': lat_f,
+                'lon': lon_f,
+                'speed': float(speed_ms) if speed_ms else 0.0,
                 'status': data.get('status', 'active'),
                 'battery_level': data.get('battery')
             }

@@ -32,6 +32,9 @@ urlpatterns = [
     path('api/user/<int:user_id>/mock-violations/',
          views.api_mock_violations,
          name='api_mock_violations'),
+    path('user/<int:user_id>/export_csv/',
+         views.export_user_routes_csv,
+         name='export_user_routes_csv'),
 ]
 
 # Only expose debug endpoint in development

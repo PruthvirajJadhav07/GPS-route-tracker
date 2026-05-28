@@ -1159,6 +1159,20 @@
         let snapBatchBuffer = [];
         let totalDistanceMeters = 0;
         let lastPoint = null;
+        
+        // POI and Navigation globals
+        let directionsService = null;
+        let directionsRenderer = null;
+        let poiMarker = null;
+        let destinationPoint = null;
+        
+        // Geofencing and IPS globals
+        let drawingManager = null;
+        let geofences = []; // Store drawn polygons
+        let activeGeofence = null;
+        let currentFloor = 1; // Default floor
+        let altitudeFloor = 1;
+        
         let isTracking = false;
         let watchId = null;
         let bgWatcherId = null;
@@ -1183,6 +1197,18 @@
         let currentHeading = 0;
         let idleMarker = null;
         let stationarySeconds = 0;
+
+        // ── DRIFT ANCHOR SYSTEM ──────────────────────
+        // Prevents "box effect" when standing still.
+        // When user is stationary, GPS drifts 5-30m randomly.
+        // Roads API snaps these drift points to nearby roads,
+        // creating fake right-turn "boxes" around the stop.
+        // The anchor locks position when stationary and rejects
+        // all GPS noise within the anchor radius.
+        let driftAnchor = null;          // {lat, lon} — locked position
+        let consecutiveStillCount = 0;   // How many sub-5m readings in a row
+        const DRIFT_ANCHOR_RADIUS = 25;  // Meters — must move this far to "break" anchor
+        const STILL_THRESHOLD = 3;       // 3 consecutive sub-5m readings = stationary
 
         // ══════════════════════════════════════════════
         // PART 2 — Utility / Helper Functions
@@ -1581,7 +1607,7 @@
                     mapTypeIds: ['roadmap', 'satellite', 'hybrid', 'terrain']
                 },
                 scaleControl: true,
-                streetViewControl: false,
+                streetViewControl: true,
                 rotateControl: false,
                 fullscreenControl: true
             }
@@ -1590,6 +1616,167 @@
             // ── Traffic Layer ─────────────────────────────
             const trafficLayer = new google.maps.TrafficLayer();
             trafficLayer.setMap(map);
+
+            // ── POI Search & Navigation ───────────────────
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer({
+                map: map,
+                suppressMarkers: true,
+                polylineOptions: { strokeColor: '#0A84FF', strokeWeight: 6, strokeOpacity: 0.8 }
+            });
+
+            // ── Geofencing Drawing Manager ────────────────
+            drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: null,
+                drawingControl: false,
+                polygonOptions: {
+                    fillColor: '#FF453A',
+                    fillOpacity: 0.3,
+                    strokeWeight: 2,
+                    strokeColor: '#FF453A',
+                    clickable: false,
+                    editable: false,
+                    zIndex: 1
+                }
+            });
+            drawingManager.setMap(map);
+
+            google.maps.event.addListener(drawingManager, 'polygoncomplete', function (polygon) {
+                geofences.push({ poly: polygon, name: 'Zone ' + (geofences.length + 1) });
+                drawingManager.setDrawingMode(null); // stop drawing
+                document.getElementById('draw-geofence-btn').innerHTML = 'Draw Geofence';
+                showToast('Geofence Created: ' + 'Zone ' + geofences.length);
+            });
+
+            // ── IPS Floor UI Logic ────────────────────────
+            const floorUpBtn = document.getElementById('floor-up-btn');
+            const floorDownBtn = document.getElementById('floor-down-btn');
+            const floorDisplay = document.getElementById('current-floor-display');
+            if (floorUpBtn && floorDownBtn && floorDisplay) {
+                floorUpBtn.addEventListener('click', () => {
+                    currentFloor++;
+                    floorDisplay.innerText = `L${currentFloor}`;
+                });
+                floorDownBtn.addEventListener('click', () => {
+                    currentFloor--;
+                    floorDisplay.innerText = `L${currentFloor}`;
+                });
+            }
+
+            const navPanel = document.getElementById('poi-nav-panel');
+            if (navPanel) {
+                navPanel.style.display = 'flex';
+                map.controls[google.maps.ControlPosition.TOP_LEFT].push(navPanel);
+
+                const input = document.getElementById('poi-search-input');
+                const searchBox = new google.maps.places.SearchBox(input);
+
+                map.addListener('bounds_changed', () => {
+                    searchBox.setBounds(map.getBounds());
+                });
+
+                searchBox.addListener('places_changed', () => {
+                    const places = searchBox.getPlaces();
+                    if (places.length === 0) return;
+
+                    const place = places[0];
+                    if (!place.geometry || !place.geometry.location) return;
+
+                    if (poiMarker) {
+                        poiMarker.setMap(null);
+                    }
+
+                    poiMarker = placeMarker(
+                        place.geometry.location.lat(), 
+                        place.geometry.location.lng(), 
+                        '#EA4335', 
+                        place.name, 
+                        1.2
+                    );
+                    destinationPoint = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
+
+                    if (place.geometry.viewport) {
+                        map.fitBounds(place.geometry.viewport);
+                    } else {
+                        map.setCenter(place.geometry.location);
+                        map.setZoom(17);
+                    }
+
+                    document.getElementById('nav-btn').style.display = 'flex';
+                });
+            }
+
+            const navBtn = document.getElementById('nav-btn');
+            const navStopBtn = document.getElementById('nav-stop-btn');
+            const drawGeoBtn = document.getElementById('draw-geofence-btn');
+            
+            if (drawGeoBtn) {
+                drawGeoBtn.addEventListener('click', () => {
+                    if (drawingManager.getDrawingMode() !== null) {
+                        drawingManager.setDrawingMode(null);
+                        drawGeoBtn.innerHTML = 'Draw Geofence';
+                    } else {
+                        drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+                        drawGeoBtn.innerHTML = 'Cancel Draw';
+                    }
+                });
+            }
+
+            if (navBtn) {
+                navBtn.addEventListener('click', () => {
+                    if (!destinationPoint) return;
+                    
+                    let originPromise;
+                    if (lastPoint) {
+                        originPromise = Promise.resolve({ lat: lastPoint.lat, lng: lastPoint.lon });
+                    } else {
+                        originPromise = new Promise((resolve, reject) => {
+                            if (navigator.geolocation) {
+                                navigator.geolocation.getCurrentPosition(
+                                    pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                                    err => {
+                                        alert('Could not get your location. Please start tracking first.');
+                                        reject(err);
+                                    },
+                                    { enableHighAccuracy: false, timeout: 10000 }
+                                );
+                            } else {
+                                resolve(map.getCenter());
+                            }
+                        });
+                    }
+
+                    originPromise.then(startPos => {
+                        directionsService.route({
+                            origin: startPos,
+                            destination: destinationPoint,
+                            travelMode: google.maps.TravelMode.DRIVING
+                        }, (response, status) => {
+                            if (status === 'OK') {
+                                directionsRenderer.setDirections(response);
+                                navBtn.style.display = 'none';
+                                navStopBtn.style.display = 'flex';
+                                if (poiMarker) {
+                                    poiMarker.setMap(null);
+                                }
+                            } else {
+                                alert('Navigation failed: ' + status);
+                            }
+                        });
+                    }).catch(e => console.log('Origin error:', e));
+                });
+            }
+
+            if (navStopBtn) {
+                navStopBtn.addEventListener('click', () => {
+                    directionsRenderer.set('directions', null);
+                    navStopBtn.style.display = 'none';
+                    navBtn.style.display = 'flex';
+                    if (destinationPoint && poiMarker) {
+                        poiMarker.setMap(map);
+                    }
+                });
+            }
         }
 
         // CRITICAL — must be assigned before Google Maps loads
@@ -1704,7 +1891,6 @@
                 };
                 if (t < 1) {
                     _activeAnimation = requestAnimationFrame(step);
-                } else {
                     _activeAnimation = null;
                 }
             }
@@ -1760,7 +1946,7 @@
                 { lat: filtLat, lon: filtLon }, lastPoint
             )) return;
 
-            // Distance filter — ignore micro movements < 1.5m to prevent stationary jiggle
+            // Distance filter — ignore micro movements to prevent stationary jiggle
             if (lastPoint) {
                 const dist = haversineJS(
                     lastPoint.lat, lastPoint.lon, filtLat, filtLon
@@ -1772,13 +1958,51 @@
 
                 console.log('DIST FROM LAST:', dist.toFixed(2) + 'm', '| SPEED:', lastReportedSpeed.toFixed(2));
 
+                // ── DRIFT ANCHOR GUARD ─────────────────────────
+                // Detects stationary state and prevents GPS drift
+                // from creating false "box effect" route segments.
                 if (dist < 5) {
-                    lastReportedSpeed = 0; // force 0 if jitter
-                    updateSpeedDisplay(lastReportedSpeed);
-                    return;
+                    consecutiveStillCount++;
+                    lastReportedSpeed = 0;
+                    updateSpeedDisplay(0);
+
+                    // After N consecutive still readings, drop the anchor
+                    if (consecutiveStillCount >= STILL_THRESHOLD && !driftAnchor) {
+                        driftAnchor = { lat: filtLat, lon: filtLon };
+                        console.log('⚓ DRIFT ANCHOR SET at', driftAnchor.lat.toFixed(6), driftAnchor.lon.toFixed(6));
+                    }
+                    return; // Don't record this point
+                }
+
+                // Point moved > 5m — but is there an active anchor?
+                if (driftAnchor) {
+                    const anchorDist = haversineJS(
+                        driftAnchor.lat, driftAnchor.lon, filtLat, filtLon
+                    );
+                    if (anchorDist < DRIFT_ANCHOR_RADIUS) {
+                        // Still within anchor radius — this is GPS drift, NOT real movement
+                        console.log(`⚓ DRIFT BLOCKED: ${anchorDist.toFixed(1)}m from anchor (need ${DRIFT_ANCHOR_RADIUS}m to break)`);
+                        lastReportedSpeed = 0;
+                        updateSpeedDisplay(0);
+                        return; // Reject this drifted point
+                    }
+                    // Moved beyond anchor radius — user is genuinely moving again
+                    console.log(`⚓ ANCHOR BROKEN: ${anchorDist.toFixed(1)}m — resuming tracking`);
+                    driftAnchor = null;
+                    consecutiveStillCount = 0;
+                } else {
+                    // No anchor — real movement, reset still counter
+                    consecutiveStillCount = 0;
                 }
             } else {
                 lastReportedSpeed = position.coords.speed || 0;
+            }
+
+            // ── IDLE GUARD: Don't record drift points while idle ──
+            if (isIdle) {
+                console.log('⏸️ IDLE — skipping rawPoints push');
+                updateSpeedDisplay(0);
+                return;
             }
 
             updateSpeedDisplay(lastReportedSpeed);
@@ -1818,7 +2042,6 @@
             const displayLon = lockedPos ? lockedPos.lon : filtLon;
 
             console.log(`LOCKER: segments=${segmentLocker.segments.length} locked=${lockedPos ? 'YES dist=' + segmentLocker._approxDist(currentPoint, lockedPos).toFixed(2) + 'm' : 'NO → raw GPS used'}`);
-            // ── Draw raw GPS faintly ──
 
 
             // Place start marker on first point
@@ -1861,6 +2084,41 @@
 
             lastPoint = currentPoint;
 
+            // ── IPS Floor Level Estimation ──
+            if (position.coords && position.coords.altitude !== null && position.coords.altitude !== undefined) {
+                const alt = position.coords.altitude;
+                // Rough estimate: 3 meters per floor, assuming ground is 0
+                const estFloor = Math.max(1, Math.floor(alt / 3));
+                if (estFloor !== altitudeFloor) {
+                    altitudeFloor = estFloor;
+                    const floorDisplay = document.getElementById('current-floor-display');
+                    if (floorDisplay) {
+                        currentFloor = estFloor;
+                        floorDisplay.innerText = `L${currentFloor}`;
+                    }
+                }
+            }
+
+            // ── Dynamic Geofencing Triggers ──
+            if (window.google && google.maps.geometry && google.maps.geometry.poly) {
+                let insideGeofence = null;
+                const gLatLng = new google.maps.LatLng(filtLat, filtLon);
+                for (let gf of geofences) {
+                    if (google.maps.geometry.poly.containsLocation(gLatLng, gf.poly)) {
+                        insideGeofence = gf;
+                        break;
+                    }
+                }
+
+                if (insideGeofence && activeGeofence !== insideGeofence) {
+                    activeGeofence = insideGeofence;
+                    showToast(`⚠️ Entered ${activeGeofence.name}`);
+                } else if (!insideGeofence && activeGeofence) {
+                    showToast(`✅ Exited ${activeGeofence.name}`);
+                    activeGeofence = null;
+                }
+            }
+
             // Push lockedPos to polyline — it's already road centered
             // Raw GPS only if locker has no segments yet
             const pushLat = lockedPos ? lockedPos.lat : filtLat;
@@ -1868,7 +2126,7 @@
 
             // NOTE: We do NOT add raw points to routePoints/polyline here.
             // Raw GPS causes triangles when snap-to-road corrects them later.
-            // The blue polyline is ONLY built from snap-corrected points (Layer A).
+            // The cyan polyline is ONLY built from snap-corrected points (Layer A).
             // The marker still moves instantly using pushLat/pushLon above.
 
 
@@ -2019,6 +2277,8 @@
             resetStats();
             lastHeading = 0;
             currentHeading = 0;
+            driftAnchor = null;
+            consecutiveStillCount = 0;
 
             // Remove existing layers
 
@@ -2760,7 +3020,7 @@
     </script>
 
     <script
-        src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&loading=async&callback=initMap&libraries=geometry,marker"
+        src="https://maps.googleapis.com/maps/api/js?key={{ GOOGLE_MAPS_API_KEY }}&loading=async&callback=initMap&libraries=geometry,marker,places,drawing"
         async defer>
         </script>
 </head>
@@ -3121,6 +3381,22 @@
                 flex-shrink: 0;
             }
         </style>
+
+        <div id="poi-nav-panel" style="display: none; background: var(--surface-1); padding: 10px; border-radius: var(--r-sm); border: 1px solid var(--border-mid); box-shadow: var(--shadow-card); flex-direction: column; gap: 8px; width: 250px; margin: 10px;">
+            <input id="poi-search-input" type="text" placeholder="Search POI or Destination..." style="width: 100%; padding: 8px; border-radius: var(--r-sm); border: 1px solid var(--border-dim); background: var(--surface-2); color: var(--txt-1); outline: none; font-family: var(--font-body);">
+            <button id="nav-btn" class="btn btn-outline" style="width: 100%; padding: 8px; justify-content: center; display: none;">Start Navigation</button>
+            <button id="nav-stop-btn" class="btn btn-stop" style="width: 100%; padding: 8px; justify-content: center; display: none;">Stop Navigation</button>
+            <button id="draw-geofence-btn" class="btn btn-outline" style="width: 100%; padding: 8px; justify-content: center;">Draw Geofence</button>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--border-dim); margin-top: 4px;">
+                <span style="font-size: 12px; color: var(--txt-2);">IPS Floor Level:</span>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button id="floor-down-btn" style="background: var(--surface-3); border: none; color: var(--txt-1); width: 24px; height: 24px; border-radius: 4px; cursor: pointer;">-</button>
+                    <span id="current-floor-display" style="font-family: var(--font-data); font-size: 14px; font-weight: 600; width: 24px; text-align: center;">L1</span>
+                    <button id="floor-up-btn" style="background: var(--surface-3); border: none; color: var(--txt-1); width: 24px; height: 24px; border-radius: 4px; cursor: pointer;">+</button>
+                </div>
+            </div>
+        </div>
 
         <div class="map-wrapper">
             <div id="map"></div>

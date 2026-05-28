@@ -1,0 +1,9 @@
+{
+  "appId": "com.routehawk.app",
+  "appName": "Routehawk",
+  "webDir": "frontend/www",
+  "server": {
+    "url": "https://abdicative-karsyn-nonamphibian.ngrok-free.dev",
+    "cleartext": true
+  }
+}

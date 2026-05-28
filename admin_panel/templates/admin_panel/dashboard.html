@@ -552,6 +552,7 @@
             <th>Today's Distance</th>
             <th>Last Active</th>
             <th>Violations</th>
+            <th>Speeding</th>
             <th>Action</th>
           </tr>
         </thead>
@@ -618,6 +619,15 @@
               </span>
               {% else %}
               <span class="badge badge-muted">Clean</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.speeding_violations > 0 %}
+              <span class="badge badge-yellow" style="background:var(--warning-dim); color:var(--warning);">
+                {{ item.speeding_violations }} alerts
+              </span>
+              {% else %}
+              <span class="badge badge-muted">0 alerts</span>
               {% endif %}
             </td>
             <td>

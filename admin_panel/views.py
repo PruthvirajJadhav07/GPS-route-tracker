@@ -1,5 +1,6 @@
 import json
 import math
+import csv
 from datetime import datetime, timedelta
 from django.shortcuts import render, get_object_or_404
 from django.http import JsonResponse
@@ -8,7 +9,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.conf import settings
 import logging
-from tracker.models import RouteLog, MockGPSViolation
+from tracker.models import RouteLog, MockGPSViolation, SpeedingViolation
 
 logger = logging.getLogger(__name__)
 
@@ -324,6 +325,7 @@ def admin_dashboard(request):
             'last_route_id':   last_route.id
                                if last_route else None,
             'mock_violations': MockGPSViolation.objects.filter(user=user).count(),
+            'speeding_violations': SpeedingViolation.objects.filter(user=user).count(),
         })
 
     # Calculate global stops today
@@ -832,3 +834,42 @@ def api_mock_violations(request, user_id):
         'violations': data
     })
 
+from django.http import HttpResponse
+
+@superadmin_required
+def export_user_routes_csv(request, user_id):
+    """
+    Exports a user's routes as a CSV file.
+    """
+    user = get_object_or_404(User, id=user_id, is_superuser=False)
+    routes = RouteLog.objects.filter(user=user).order_by('-created_at')
+
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="routes_{user.username}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Route ID', 'Date', 'Start Lat', 'Start Lon', 'End Lat', 'End Lon', 'Total Points', 'Distance (m)', 'Duration (min)'])
+
+    for route in routes:
+        points = normalize_points(route.route_points)
+        distance = compute_distance(points)
+        duration_min = round((route.total_points * 5) / 60, 2)
+        start_lat = points[0]['lat'] if points else ''
+        start_lon = points[0]['lon'] if points else ''
+        end_lat = points[-1]['lat'] if points else ''
+        end_lon = points[-1]['lon'] if points else ''
+        local_time = timezone.localtime(route.created_at).strftime('%Y-%m-%d %H:%M:%S')
+
+        writer.writerow([
+            route.id,
+            local_time,
+            start_lat,
+            start_lon,
+            end_lat,
+            end_lon,
+            route.total_points,
+            distance,
+            duration_min
+        ])
+
+    return response

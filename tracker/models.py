@@ -90,3 +90,54 @@ class MockGPSViolation(models.Model):
 
     def __str__(self):
         return f'⛔ MOCK GPS: {self.user.username} at {self.detected_at}'
+
+
+class SpeedingViolation(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='speeding_violations')
+    speed = models.FloatField() # Speed in km/h
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    detected_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-detected_at']
+
+    def __str__(self):
+        return f'Speeding: {self.user.username} at {self.speed:.1f}km/h'
+
+
+class Geofence(models.Model):
+    name = models.CharField(max_length=100)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    radius_meters = models.FloatField(default=100.0)
+
+    def __str__(self):
+        return self.name
+
+
+class GeofenceEvent(models.Model):
+    ACTION_CHOICES = (
+        ('enter', 'Entered'),
+        ('exit', 'Exited'),
+    )
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='geofence_events')
+    geofence = models.ForeignKey(Geofence, on_delete=models.CASCADE, related_name='events')
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f'{self.user.username} {self.action} {self.geofence.name}'
+
+
+class UserGeofenceState(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    geofence = models.ForeignKey(Geofence, on_delete=models.CASCADE)
+    is_inside = models.BooleanField(default=False)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('user', 'geofence')
