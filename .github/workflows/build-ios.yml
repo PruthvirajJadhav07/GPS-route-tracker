@@ -29,11 +29,11 @@ jobs:
       - name: Build Unsigned iOS App
         run: |
           cd frontend/ios/App
-          xcodebuild clean build -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos CONFIGURATION_BUILD_DIR=build/Release-iphoneos CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          xcodebuild clean build -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos -derivedDataPath derivedData CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
       - name: Convert to .ipa file
         run: |
-          cd frontend/ios/App/build/Release-iphoneos
+          cd frontend/ios/App/derivedData/Build/Products/Release-iphoneos
           mkdir Payload
           mv App.app Payload/
           zip -r RouteHawk.ipa Payload
@@ -42,4 +42,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: RouteHawk-iOS
-          path: frontend/ios/App/build/Release-iphoneos/RouteHawk.ipa
+          path: frontend/ios/App/derivedData/Build/Products/Release-iphoneos/RouteHawk.ipa
