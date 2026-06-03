@@ -19,12 +19,13 @@ jobs:
 
       - name: Install dependencies & Sync Capacitor
         run: |
+          npm install -g @capacitor/cli
           cd frontend
           rm -rf node_modules
           npm install
           npm install @capacitor/ios
-          npx cap add ios || true
-          npx cap sync ios
+          cap add ios || true
+          cap sync ios
           
       - name: Build Unsigned iOS App
         run: |
