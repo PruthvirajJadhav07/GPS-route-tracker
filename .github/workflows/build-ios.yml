@@ -19,11 +19,10 @@ jobs:
 
       - name: Install dependencies & Sync Capacitor
         run: |
-          npm install -g @capacitor/cli
+          npm install -g @capacitor/cli@6
           cd frontend
           rm -rf node_modules
-          npm install
-          npm install @capacitor/ios
+          npm install @capacitor/core@6 @capacitor/ios@6
           cap add ios || true
           cap sync ios
           
