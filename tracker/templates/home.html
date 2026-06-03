@@ -1159,20 +1159,20 @@
         let snapBatchBuffer = [];
         let totalDistanceMeters = 0;
         let lastPoint = null;
-        
+
         // POI and Navigation globals
         let directionsService = null;
         let directionsRenderer = null;
         let poiMarker = null;
         let destinationPoint = null;
-        
+
         // Geofencing and IPS globals
         let drawingManager = null;
         let geofences = []; // Store drawn polygons
         let activeGeofence = null;
         let currentFloor = 1; // Default floor
         let altitudeFloor = 1;
-        
+
         let isTracking = false;
         let watchId = null;
         let bgWatcherId = null;
@@ -1687,10 +1687,10 @@
                     }
 
                     poiMarker = placeMarker(
-                        place.geometry.location.lat(), 
-                        place.geometry.location.lng(), 
-                        '#EA4335', 
-                        place.name, 
+                        place.geometry.location.lat(),
+                        place.geometry.location.lng(),
+                        '#EA4335',
+                        place.name,
                         1.2
                     );
                     destinationPoint = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
@@ -1709,7 +1709,7 @@
             const navBtn = document.getElementById('nav-btn');
             const navStopBtn = document.getElementById('nav-stop-btn');
             const drawGeoBtn = document.getElementById('draw-geofence-btn');
-            
+
             if (drawGeoBtn) {
                 drawGeoBtn.addEventListener('click', () => {
                     if (drawingManager.getDrawingMode() !== null) {
@@ -1725,7 +1725,7 @@
             if (navBtn) {
                 navBtn.addEventListener('click', () => {
                     if (!destinationPoint) return;
-                    
+
                     let originPromise;
                     if (lastPoint) {
                         originPromise = Promise.resolve({ lat: lastPoint.lat, lng: lastPoint.lon });
@@ -3382,18 +3382,51 @@
             }
         </style>
 
-        <div id="poi-nav-panel" style="display: none; background: var(--surface-1); padding: 10px; border-radius: var(--r-sm); border: 1px solid var(--border-mid); box-shadow: var(--shadow-card); flex-direction: column; gap: 8px; width: 250px; margin: 10px;">
-            <input id="poi-search-input" type="text" placeholder="Search POI or Destination..." style="width: 100%; padding: 8px; border-radius: var(--r-sm); border: 1px solid var(--border-dim); background: var(--surface-2); color: var(--txt-1); outline: none; font-family: var(--font-body);">
-            <button id="nav-btn" class="btn btn-outline" style="width: 100%; padding: 8px; justify-content: center; display: none;">Start Navigation</button>
-            <button id="nav-stop-btn" class="btn btn-stop" style="width: 100%; padding: 8px; justify-content: center; display: none;">Stop Navigation</button>
-            <button id="draw-geofence-btn" class="btn btn-outline" style="width: 100%; padding: 8px; justify-content: center;">Draw Geofence</button>
-            
-            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--border-dim); margin-top: 4px;">
+        <a href="tel:8483053398" id="sos-btn" style="
+            position: fixed;
+            bottom: 30px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FF3B30, #D32F2F);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-body);
+            font-weight: 800;
+            font-size: 16px;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(255, 59, 48, 0.5);
+            z-index: 1000;
+            border: 2px solid rgba(255,255,255,0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        ">
+            SOS
+        </a>
+
+        <div id="poi-nav-panel"
+            style="display: none; background: var(--surface-1); padding: 10px; border-radius: var(--r-sm); border: 1px solid var(--border-mid); box-shadow: var(--shadow-card); flex-direction: column; gap: 8px; width: 250px; margin: 10px;">
+            <input id="poi-search-input" type="text" placeholder="Search POI or Destination..."
+                style="width: 100%; padding: 8px; border-radius: var(--r-sm); border: 1px solid var(--border-dim); background: var(--surface-2); color: var(--txt-1); outline: none; font-family: var(--font-body);">
+            <button id="nav-btn" class="btn btn-outline"
+                style="width: 100%; padding: 8px; justify-content: center; display: none;">Start Navigation</button>
+            <button id="nav-stop-btn" class="btn btn-stop"
+                style="width: 100%; padding: 8px; justify-content: center; display: none;">Stop Navigation</button>
+            <button id="draw-geofence-btn" class="btn btn-outline"
+                style="width: 100%; padding: 8px; justify-content: center;">Draw Geofence</button>
+
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid var(--border-dim); margin-top: 4px;">
                 <span style="font-size: 12px; color: var(--txt-2);">IPS Floor Level:</span>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <button id="floor-down-btn" style="background: var(--surface-3); border: none; color: var(--txt-1); width: 24px; height: 24px; border-radius: 4px; cursor: pointer;">-</button>
-                    <span id="current-floor-display" style="font-family: var(--font-data); font-size: 14px; font-weight: 600; width: 24px; text-align: center;">L1</span>
-                    <button id="floor-up-btn" style="background: var(--surface-3); border: none; color: var(--txt-1); width: 24px; height: 24px; border-radius: 4px; cursor: pointer;">+</button>
+                    <button id="floor-down-btn"
+                        style="background: var(--surface-3); border: none; color: var(--txt-1); width: 24px; height: 24px; border-radius: 4px; cursor: pointer;">-</button>
+                    <span id="current-floor-display"
+                        style="font-family: var(--font-data); font-size: 14px; font-weight: 600; width: 24px; text-align: center;">L1</span>
+                    <button id="floor-up-btn"
+                        style="background: var(--surface-3); border: none; color: var(--txt-1); width: 24px; height: 24px; border-radius: 4px; cursor: pointer;">+</button>
                 </div>
             </div>
         </div>

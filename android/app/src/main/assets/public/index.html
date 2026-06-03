@@ -22,6 +22,34 @@
         </header>
 
         <!-- Map Container -->
+        <div id="poi-nav-panel" style="display: none; position: absolute; top: 80px; left: 10px; right: 10px; z-index: 1000; background: #1e293b; padding: 10px; border-radius: 12px; border: 1px solid #334155; box-shadow: 0 4px 12px rgba(0,0,0,0.5); flex-direction: column; gap: 8px;">
+            <input id="poi-search-input" type="text" placeholder="Search POI or Destination..." style="width: 100%; padding: 10px; box-sizing: border-box; border-radius: 8px; border: 1px solid #475569; background: #0f172a; color: #f8fafc; outline: none; font-family: inherit;">
+            <button id="nav-btn" style="width: 100%; padding: 10px; background: #3b82f6; color: white; border: none; border-radius: 8px; display: none; font-weight: bold;">Start Navigation</button>
+            <button id="nav-stop-btn" style="width: 100%; padding: 10px; background: #ef4444; color: white; border: none; border-radius: 8px; display: none; font-weight: bold;">Stop Navigation</button>
+        </div>
+        <a href="tel:8483053398" id="sos-btn" style="
+            position: absolute;
+            bottom: 220px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #FF3B30, #D32F2F);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            font-size: 16px;
+            text-decoration: none;
+            box-shadow: 0 4px 15px rgba(255, 59, 48, 0.5);
+            z-index: 1000;
+            border: 2px solid rgba(255,255,255,0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        ">
+            SOS
+        </a>
         <div id="map"></div>
 
         <!-- Info Panel -->
@@ -58,7 +86,7 @@
     </div>
 
     <!-- Google Maps API -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBRZBD6keKsDP6vcw4JJWyNjJyWtEmQF6Q"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBRZBD6keKsDP6vcw4JJWyNjJyWtEmQF6Q&libraries=places"></script>
 
     <script src="js/app.js"></script>
 </body>

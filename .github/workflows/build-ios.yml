@@ -1,0 +1,44 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Install Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Install dependencies & Sync Capacitor
+        run: |
+          cd frontend
+          npm install
+          npm install @capacitor/ios
+          npx cap add ios || true
+          npx cap sync ios
+          
+      - name: Build Unsigned iOS App
+        run: |
+          cd frontend/ios/App
+          xcodebuild clean build -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+      - name: Convert to .ipa file
+        run: |
+          cd frontend/ios/App/build/Release-iphoneos
+          mkdir Payload
+          mv App.app Payload/
+          zip -r RouteHawk.ipa Payload
+          
+      - name: Upload .ipa Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: RouteHawk-iOS
+          path: frontend/ios/App/build/Release-iphoneos/RouteHawk.ipa

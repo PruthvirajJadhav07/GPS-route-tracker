@@ -63,6 +63,12 @@ let devicePk = null;
 let trackPoints = [];
 let mapReady = false;
 
+// POI and Navigation globals
+let directionsService = null;
+let directionsRenderer = null;
+let poiMarker = null;
+let destinationPoint = null;
+
 function getOrCreateId() {
     let id = localStorage.getItem('device_uuid');
     if (!id) {
@@ -106,6 +112,112 @@ function initMap() {
         strokeWeight: 5,
         map: map
     });
+
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: true,
+        polylineOptions: { strokeColor: '#3b82f6', strokeWeight: 5, strokeOpacity: 0.9 }
+    });
+
+    const navPanel = document.getElementById('poi-nav-panel');
+    if (navPanel) {
+        navPanel.style.display = 'flex';
+        const input = document.getElementById('poi-search-input');
+        const searchBox = new google.maps.places.SearchBox(input);
+
+        map.addListener('bounds_changed', () => {
+            searchBox.setBounds(map.getBounds());
+        });
+
+        searchBox.addListener('places_changed', () => {
+            const places = searchBox.getPlaces();
+            if (places.length === 0) return;
+
+            const place = places[0];
+            if (!place.geometry || !place.geometry.location) return;
+
+            if (poiMarker) {
+                poiMarker.setMap(null);
+            }
+
+            poiMarker = new google.maps.Marker({
+                position: place.geometry.location,
+                map: map,
+                title: place.name
+            });
+            destinationPoint = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
+
+            if (place.geometry.viewport) {
+                map.fitBounds(place.geometry.viewport);
+            } else {
+                map.setCenter(place.geometry.location);
+                map.setZoom(17);
+            }
+
+            document.getElementById('nav-btn').style.display = 'block';
+        });
+    }
+
+    const navBtn = document.getElementById('nav-btn');
+    const navStopBtn = document.getElementById('nav-stop-btn');
+
+    if (navBtn) {
+        navBtn.addEventListener('click', () => {
+            if (!destinationPoint) return;
+
+            let originPromise;
+            const currentPos = marker.getPosition();
+            if (currentPos && currentPos.lat() !== 20.5937) { // 20.5937 is default pos lat
+                originPromise = Promise.resolve(currentPos);
+            } else {
+                originPromise = new Promise((resolve, reject) => {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            pos => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                            err => {
+                                alert('Could not get your location. Please start tracking first.');
+                                reject(err);
+                            },
+                            { enableHighAccuracy: false, timeout: 10000 }
+                        );
+                    } else {
+                        resolve(map.getCenter());
+                    }
+                });
+            }
+
+            originPromise.then(startPos => {
+                directionsService.route({
+                    origin: startPos,
+                    destination: destinationPoint,
+                    travelMode: google.maps.TravelMode.DRIVING
+                }, (response, status) => {
+                    if (status === 'OK') {
+                        directionsRenderer.setDirections(response);
+                        navBtn.style.display = 'none';
+                        navStopBtn.style.display = 'block';
+                        if (poiMarker) {
+                            poiMarker.setMap(null);
+                        }
+                    } else {
+                        alert('Navigation failed: ' + status);
+                    }
+                });
+            }).catch(e => console.log('Origin error:', e));
+        });
+    }
+
+    if (navStopBtn) {
+        navStopBtn.addEventListener('click', () => {
+            directionsRenderer.set('directions', null);
+            navStopBtn.style.display = 'none';
+            navBtn.style.display = 'block';
+            if (destinationPoint && poiMarker) {
+                poiMarker.setMap(map);
+            }
+        });
+    }
 
     mapReady = true;
 
