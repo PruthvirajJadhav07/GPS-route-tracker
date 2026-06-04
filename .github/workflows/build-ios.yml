@@ -29,7 +29,8 @@ jobs:
       - name: Build Unsigned iOS App
         run: |
           cd frontend/ios/App
-          xcodebuild clean build -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos -derivedDataPath derivedData CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=YES
+          sed -i '' 's/CODE_SIGNING_ALLOWED" == "NO"/CODE_SIGNING_ALLOWED" == "NEVER"/g' "Pods/Target Support Files/Pods-App/Pods-App-frameworks.sh" || true
+          xcodebuild clean build -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos -derivedDataPath derivedData CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
       - name: Convert to .ipa file
         run: |
