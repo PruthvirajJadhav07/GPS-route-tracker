@@ -25,28 +25,40 @@ jobs:
           npm install @capacitor/core@6 @capacitor/ios@6
           cap add ios || true
           cap sync ios
-          
-      - name: Build Unsigned iOS App
+
+      - name: Build iOS Archive
         run: |
           cd frontend/ios/App
-          sed -i '' 's/CODE_SIGNING_ALLOWED" == "NO"/CODE_SIGNING_ALLOWED" == "NEVER"/g' "Pods/Target Support Files/Pods-App/Pods-App-frameworks.sh" || true
-          xcodebuild clean build -workspace App.xcworkspace -scheme App -configuration Release -sdk iphoneos -derivedDataPath derivedData CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+          xcodebuild archive \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath $PWD/RouteHawk.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
 
-      - name: Convert to .ipa file
+      - name: Create .ipa from Archive
         run: |
-          cd frontend/ios/App/derivedData/Build/Products/Release-iphoneos
-          # Manually embed missing frameworks because CocoaPods refuses to do it for unsigned builds
-          mkdir -p App.app/Frameworks
-          cp -R Capacitor/Capacitor.framework App.app/Frameworks/ 2>/dev/null || true
-          cp -R CapacitorCordova/Cordova.framework App.app/Frameworks/ 2>/dev/null || true
-          cp -R Pods_App.framework App.app/Frameworks/ 2>/dev/null || true
+          cd frontend/ios/App
+          APP_PATH="RouteHawk.xcarchive/Products/Applications/App.app"
           
-          mkdir Payload
-          mv App.app Payload/
+          # Debug: show what we built
+          echo "=== App bundle contents ==="
+          ls -la "$APP_PATH/"
+          echo "=== Info.plist check ==="
+          head -5 "$APP_PATH/Info.plist"
+          echo "=== Frameworks ==="
+          ls -la "$APP_PATH/Frameworks/" 2>/dev/null || echo "No Frameworks dir"
+          
+          # Create proper IPA structure
+          mkdir -p Payload
+          cp -R "$APP_PATH" Payload/
           zip -ry RouteHawk.ipa Payload
-          
+
       - name: Upload .ipa Artifact
         uses: actions/upload-artifact@v4
         with:
           name: RouteHawk-iOS
-          path: frontend/ios/App/derivedData/Build/Products/Release-iphoneos/RouteHawk.ipa
+          path: frontend/ios/App/RouteHawk.ipa
