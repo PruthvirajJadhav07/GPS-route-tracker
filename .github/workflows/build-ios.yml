@@ -65,13 +65,23 @@ jobs:
           echo "=== Main binary size ==="
           ls -lh App.app/App
           
-          # Create IPA with proper structure
+          # Convert Info.plist from binary to XML for maximum compatibility
+          plutil -convert xml1 App.app/Info.plist
+          
+          # Print full Info.plist so we can verify all required keys
+          echo "=== Full Info.plist contents ==="
+          cat App.app/Info.plist
+          
+          # Create IPA using Apple's own ditto tool (not zip)
+          # This creates the exact ZIP format that Xcode and AltStore expect
           mkdir Payload
           cp -R App.app Payload/
-          zip -ry RouteHawk.ipa Payload
+          ditto -c -k --sequesterRsrc --keepParent Payload RouteHawk.ipa
           
           echo "=== Final IPA size ==="
           ls -lh RouteHawk.ipa
+          echo "=== Verify IPA is a valid ZIP ==="
+          file RouteHawk.ipa
           echo "Build complete. IPA is ready."
 
       - name: Upload .ipa Artifact
