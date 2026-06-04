@@ -26,6 +26,14 @@ jobs:
           cap add ios || true
           cap sync ios
 
+      - name: Patch CocoaPods to embed frameworks without signing
+        run: |
+          cd frontend/ios/App
+          # CocoaPods has a script that skips framework embedding when signing is disabled.
+          # We patch EVERY script that contains this check.
+          find Pods/Target\ Support\ Files -name "*.sh" -exec sed -i '' 's/if \[ -z "${CODE_SIGNING_ALLOWED:-}" \]; then CODE_SIGNING_ALLOWED=YES; fi/CODE_SIGNING_ALLOWED=YES/g' {} \;
+          find Pods/Target\ Support\ Files -name "*.sh" -exec sed -i '' 's/"${CODE_SIGNING_ALLOWED}" != "NO"/"YES" != "NO"/g' {} \;
+
       - name: Build iOS Archive
         run: |
           cd frontend/ios/App
@@ -44,18 +52,27 @@ jobs:
           cd frontend/ios/App
           APP_PATH="RouteHawk.xcarchive/Products/Applications/App.app"
           
-          # Debug: show what we built
-          echo "=== App bundle contents ==="
-          ls -la "$APP_PATH/"
-          echo "=== Info.plist check ==="
-          head -5 "$APP_PATH/Info.plist"
-          echo "=== Frameworks ==="
-          ls -la "$APP_PATH/Frameworks/" 2>/dev/null || echo "No Frameworks dir"
+          # If CocoaPods STILL didn't embed, brute-force find and copy every framework
+          mkdir -p "$APP_PATH/Frameworks"
+          find RouteHawk.xcarchive -name "Capacitor.framework" -not -path "*/App.app/*" | head -1 | xargs -I{} cp -R {} "$APP_PATH/Frameworks/" 2>/dev/null || true
+          find RouteHawk.xcarchive -name "Cordova.framework" -not -path "*/App.app/*" | head -1 | xargs -I{} cp -R {} "$APP_PATH/Frameworks/" 2>/dev/null || true
+          find RouteHawk.xcarchive -name "Pods_App.framework" -not -path "*/App.app/*" | head -1 | xargs -I{} cp -R {} "$APP_PATH/Frameworks/" 2>/dev/null || true
           
-          # Create proper IPA structure
+          # Debug: print what is inside the final app
+          echo "=== Final App.app size ==="
+          du -sh "$APP_PATH"
+          echo "=== Info.plist first 3 lines ==="
+          head -3 "$APP_PATH/Info.plist"
+          echo "=== Frameworks directory ==="
+          ls -la "$APP_PATH/Frameworks/"
+          
+          # Create IPA
           mkdir -p Payload
           cp -R "$APP_PATH" Payload/
           zip -ry RouteHawk.ipa Payload
+          
+          echo "=== Final IPA size ==="
+          ls -lh RouteHawk.ipa
 
       - name: Upload .ipa Artifact
         uses: actions/upload-artifact@v4
