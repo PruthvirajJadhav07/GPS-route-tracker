@@ -43,7 +43,7 @@ jobs:
           
           mkdir Payload
           mv App.app Payload/
-          zip -r RouteHawk.ipa Payload
+          zip -ry RouteHawk.ipa Payload
           
       - name: Upload .ipa Artifact
         uses: actions/upload-artifact@v4
