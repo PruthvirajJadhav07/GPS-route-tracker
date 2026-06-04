@@ -25,57 +25,65 @@ jobs:
           npm install @capacitor/core@6 @capacitor/ios@6
           cap add ios || true
           cap sync ios
+          
+          # CRITICAL FIX: Switch from dynamic frameworks to static linking.
+          # This bakes Capacitor/Cordova code directly into the app binary,
+          # completely eliminating the framework embedding problem.
+          cd ios/App
+          sed -i '' 's/use_frameworks!/use_frameworks! :linkage => :static/' Podfile
+          pod install
 
-      - name: Patch CocoaPods to embed frameworks without signing
+      - name: Build iOS App
         run: |
           cd frontend/ios/App
-          # CocoaPods has a script that skips framework embedding when signing is disabled.
-          # We patch EVERY script that contains this check.
-          find Pods/Target\ Support\ Files -name "*.sh" -exec sed -i '' 's/if \[ -z "${CODE_SIGNING_ALLOWED:-}" \]; then CODE_SIGNING_ALLOWED=YES; fi/CODE_SIGNING_ALLOWED=YES/g' {} \;
-          find Pods/Target\ Support\ Files -name "*.sh" -exec sed -i '' 's/"${CODE_SIGNING_ALLOWED}" != "NO"/"YES" != "NO"/g' {} \;
-
-      - name: Build iOS Archive
-        run: |
-          cd frontend/ios/App
-          xcodebuild archive \
+          xcodebuild build \
             -workspace App.xcworkspace \
             -scheme App \
             -configuration Release \
             -sdk iphoneos \
-            -archivePath $PWD/RouteHawk.xcarchive \
+            -derivedDataPath derivedData \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Create .ipa from Archive
+      - name: Create and Validate .ipa
         run: |
-          cd frontend/ios/App
-          APP_PATH="RouteHawk.xcarchive/Products/Applications/App.app"
+          cd frontend/ios/App/derivedData/Build/Products/Release-iphoneos
           
-          # If CocoaPods STILL didn't embed, brute-force find and copy every framework
-          mkdir -p "$APP_PATH/Frameworks"
-          find RouteHawk.xcarchive -name "Capacitor.framework" -not -path "*/App.app/*" | head -1 | xargs -I{} cp -R {} "$APP_PATH/Frameworks/" 2>/dev/null || true
-          find RouteHawk.xcarchive -name "Cordova.framework" -not -path "*/App.app/*" | head -1 | xargs -I{} cp -R {} "$APP_PATH/Frameworks/" 2>/dev/null || true
-          find RouteHawk.xcarchive -name "Pods_App.framework" -not -path "*/App.app/*" | head -1 | xargs -I{} cp -R {} "$APP_PATH/Frameworks/" 2>/dev/null || true
+          # Validate Info.plist is not corrupted
+          echo "=== Validating Info.plist ==="
+          plutil -lint App.app/Info.plist
           
-          # Debug: print what is inside the final app
-          echo "=== Final App.app size ==="
-          du -sh "$APP_PATH"
-          echo "=== Info.plist first 3 lines ==="
-          head -3 "$APP_PATH/Info.plist"
-          echo "=== Frameworks directory ==="
-          ls -la "$APP_PATH/Frameworks/"
+          # Show what file type Info.plist actually is
+          file App.app/Info.plist
           
-          # Create IPA
-          mkdir -p Payload
-          cp -R "$APP_PATH" Payload/
+          # Show app bundle size
+          echo "=== App.app total size ==="
+          du -sh App.app
+          
+          # Show the main binary size (should be several MB with static linking)
+          echo "=== Main binary size ==="
+          ls -lh App.app/App
+          
+          # Create IPA with proper structure
+          mkdir Payload
+          cp -R App.app Payload/
           zip -ry RouteHawk.ipa Payload
           
-          echo "=== Final IPA size ==="
-          ls -lh RouteHawk.ipa
+          # SAFETY CHECK: Fail the build if IPA is under 1.5 MB
+          # This prevents downloading a broken file
+          IPA_SIZE=$(stat -f%z RouteHawk.ipa)
+          echo "=== Final IPA size: $IPA_SIZE bytes ==="
+          if [ "$IPA_SIZE" -lt 1500000 ]; then
+            echo "FATAL: IPA is only $IPA_SIZE bytes. Something is wrong. Failing build."
+            echo "=== Listing App.app contents for debugging ==="
+            find App.app -type f -exec ls -lh {} \;
+            exit 1
+          fi
+          echo "IPA size check PASSED."
 
       - name: Upload .ipa Artifact
         uses: actions/upload-artifact@v4
         with:
           name: RouteHawk-iOS
-          path: frontend/ios/App/RouteHawk.ipa
+          path: frontend/ios/App/derivedData/Build/Products/Release-iphoneos/RouteHawk.ipa
