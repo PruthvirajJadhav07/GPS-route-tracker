@@ -35,6 +35,12 @@ jobs:
       - name: Convert to .ipa file
         run: |
           cd frontend/ios/App/derivedData/Build/Products/Release-iphoneos
+          # Manually embed missing frameworks because CocoaPods refuses to do it for unsigned builds
+          mkdir -p App.app/Frameworks
+          cp -R Capacitor/Capacitor.framework App.app/Frameworks/ 2>/dev/null || true
+          cp -R CapacitorCordova/Cordova.framework App.app/Frameworks/ 2>/dev/null || true
+          cp -R Pods_App.framework App.app/Frameworks/ 2>/dev/null || true
+          
           mkdir Payload
           mv App.app Payload/
           zip -r RouteHawk.ipa Payload
