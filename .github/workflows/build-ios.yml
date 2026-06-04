@@ -23,8 +23,20 @@ jobs:
           cd frontend
           rm -rf node_modules
           npm install @capacitor/core@6 @capacitor/ios@6
+          npm install @capacitor-community/background-geolocation@latest
           cap add ios || true
           cap sync ios
+          
+          # Inject iOS Background Location permissions directly into Info.plist
+          cd ios/App/App
+          plutil -replace NSLocationWhenInUseUsageDescription -string "RouteHawk needs location to track your route." Info.plist
+          plutil -replace NSLocationAlwaysAndWhenInUseUsageDescription -string "RouteHawk needs background location to track your route when screen is locked." Info.plist
+          plutil -replace NSLocationAlwaysUsageDescription -string "RouteHawk needs background location to track your route when screen is locked." Info.plist
+          
+          # Add UIBackgroundModes array and append 'location'
+          plutil -extract UIBackgroundModes xml1 -o - Info.plist > /dev/null 2>&1 || plutil -insert UIBackgroundModes -array Info.plist
+          plutil -insert UIBackgroundModes.0 -string "location" Info.plist || true
+          cd ../../..
           
           # CRITICAL FIX: Switch from dynamic frameworks to static linking.
           # This bakes Capacitor/Cordova code directly into the app binary,
