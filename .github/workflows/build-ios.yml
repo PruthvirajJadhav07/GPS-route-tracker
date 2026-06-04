@@ -72,16 +72,17 @@ jobs:
           echo "=== Full Info.plist contents ==="
           cat App.app/Info.plist
           
-          # Create IPA using Apple's own ditto tool (not zip)
-          # This creates the exact ZIP format that Xcode and AltStore expect
+          # Create IPA using standard zip (ditto adds __MACOSX which breaks AltStore!)
           mkdir Payload
           cp -R App.app Payload/
-          ditto -c -k --sequesterRsrc --keepParent Payload RouteHawk.ipa
+          zip -r RouteHawk.ipa Payload -x "*.DS_Store"
           
           echo "=== Final IPA size ==="
           ls -lh RouteHawk.ipa
-          echo "=== Verify IPA is a valid ZIP ==="
-          file RouteHawk.ipa
+          
+          echo "=== IPA Contents (Proof for your friend) ==="
+          unzip -l RouteHawk.ipa | grep -E "App$|Info.plist|index.html|app.js"
+          
           echo "Build complete. IPA is ready."
 
       - name: Upload .ipa Artifact
